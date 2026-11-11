@@ -44,6 +44,17 @@ checkCommand() {
     command -v "$1" > /dev/null 2>&1
 }
 
+checkWads() {
+    local missingWad=0
+    for wadName in "freedm.wad" "freedoom2.wad"; do
+        if [[ ! -f "$wadDir/$wadName" ]]; then
+            echo -e "${colorRed}Missing: $wadDir/$wadName${colorReset}"
+            missingWad=1
+        fi
+    done
+    return "$missingWad"
+}
+
 # Preflight checks
 runStep "Check curl" "Install it with: sudo pacman -S curl" checkCommand curl
 runStep "Check flatpak" "Install it with: sudo pacman -S flatpak" checkCommand flatpak
@@ -78,6 +89,10 @@ runStep "Extract FreeDM" \
 runStep "Extract Freedoom" \
     "The ZIP may be corrupt or contain no .wad file." \
     unzip -j -o "$tempDir/freedoom.zip" "*.wad" -d "$wadDir"
+
+runStep "Set WAD folder for Odamex" \
+    "Flatpak override failed. Is Odamex installed? Check with: flatpak list" \
+    flatpak override --user --env=DOOMWADDIR="$wadDir" net.odamex.Odamex
 
 runStep "Verify WAD files" \
     "WAD files are missing in $wadDir. Check the Freedoom ZIP contents." \
