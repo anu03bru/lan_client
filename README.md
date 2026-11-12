@@ -1,6 +1,7 @@
-## OpenSource Doom
+# OpenSource Doom
 These are the client file for doom using opendoom(game files) and odamex client(engine)
 
+### Linux (ChachyOS)
 on linux(cachyos) just install the flatpak which will add odamex as well as the odamex launcher
 
 after the install script runs. 3 entries will be added to start:
@@ -24,6 +25,7 @@ freedoom= singleplayer maps for coop
 
 TODO: verify windows version of the script
 
+### Windows
 On Windows just run the "install_doom.ps1" script.
 
 Command:
@@ -34,10 +36,12 @@ $ .\install_doom.ps1
 
 It will create a shortcut on your desktop environment. You can start the game from there.
 
-### Blobby Volley
+# Blobby Volley
+### Linux (ChachyOS)
 on linux(cachyos)
 TODO
 
+### Windows
 On Windows just run the "install_blobby.ps1" script.
 
 Command:
