@@ -104,3 +104,4 @@ runStep "Give Odamex access to WAD folder" \
     flatpak override --user --filesystem="$wadDir:ro" net.odamex.Odamex
 
 echo -e "${colorGreen}Done! Open Odalaunch and set the WAD folder to: $wadDir${colorReset}"
+echo -e "${colorGreen}Want to try it alone first? Start \"Odamex\" from the start menu or run: flatpak run net.odamex.Odamex${colorReset}"

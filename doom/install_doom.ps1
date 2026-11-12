@@ -84,14 +84,20 @@ try {
         }
     }
 
-    # Shortcut
-    Invoke-Step "Create desktop shortcut" "Could not create the shortcut. Start Odalaunch manually from $installDir." {
+    # Shortcuts
+    Invoke-Step "Create desktop shortcuts" "Could not create the shortcuts. Start the programs manually from $installDir." {
         $desktopPath = [Environment]::GetFolderPath("Desktop")
         $shell = New-Object -ComObject WScript.Shell
-        $shortcut = $shell.CreateShortcut((Join-Path $desktopPath "Odamex LAN.lnk"))
-        $shortcut.TargetPath = Join-Path $installDir "odalaunch.exe"
-        $shortcut.WorkingDirectory = $installDir
-        $shortcut.Save()
+
+        $multiplayerShortcut = $shell.CreateShortcut((Join-Path $desktopPath "Odamex LAN.lnk"))
+        $multiplayerShortcut.TargetPath = Join-Path $installDir "odalaunch.exe"
+        $multiplayerShortcut.WorkingDirectory = $installDir
+        $multiplayerShortcut.Save()
+
+        $singleplayerShortcut = $shell.CreateShortcut((Join-Path $desktopPath "Odamex Singleplayer.lnk"))
+        $singleplayerShortcut.TargetPath = Join-Path $installDir "odamex.exe"
+        $singleplayerShortcut.WorkingDirectory = $installDir
+        $singleplayerShortcut.Save()
     }
 
     Write-Host "Done! Start Odamex with the 'Odamex LAN' shortcut on your desktop." -ForegroundColor Green
