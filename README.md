@@ -51,3 +51,18 @@ $ .\install_blobby.ps1
 ````
 
 It will create a shortcut on your desktop environment. You can start the game from there.
+
+# Assault Cube
+### Linux (ChachyOS)
+on linux ...
+
+### Windows
+On Windows just run the "install_assault_cube.ps1" script.
+
+Command:
+````bash
+$ cd assault_cube
+$ .\install_assault_cube.ps1
+````
+
+It will create a shortcut on your desktop environment. You can start the game from there.
