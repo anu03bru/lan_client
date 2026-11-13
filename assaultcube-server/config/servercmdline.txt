@@ -1,0 +1,8 @@
+// Server options, one per line. Lines starting with // are ignored.
+// No -Y key: the server stays LAN-only, which is what we want.
+
+// max clients
+-c16
+
+// game port (info port is this + 1)
+-f28763
