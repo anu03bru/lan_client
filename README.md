@@ -22,7 +22,7 @@ The games and their download links, ports and folders are listed in [`games.toml
 
 Linux:
 ```bash
-./lan.py                          # menu: pick a game number, then 1 = install, 2 = uninstall
+./lan.py                          # menu: pick a game number, then 1 = install, 2 = uninstall, 3 = back
 ./lan.py list                     # all games and whether they are installed
 ./lan.py install supertuxkart     # one game
 ./lan.py install all              # all games

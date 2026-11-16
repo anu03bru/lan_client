@@ -95,6 +95,16 @@ class CliTest(unittest.TestCase):
         self.assertEqual(code, cli.EXIT_OK)
         self.assertEqual(platform.done, [("uninstall", "doom")])
 
+    def test_menu_3_goes_back_to_the_game_list(self):
+        platform = FakePlatform()
+        steps, output = quiet_steps()
+        # game 1, back, then game 2 and install
+        with mock.patch.object(cli, "ask", side_effect=["1", "3", "2", "1"]):
+            code = cli.main([], platform=platform, games=GAMES, steps=steps)
+        self.assertEqual(code, cli.EXIT_OK)
+        self.assertEqual(platform.done, [("install", "stk")])
+        self.assertEqual(output.getvalue().count("LAN party games"), 2)
+
     def test_menu_other_action_cancels(self):
         platform = FakePlatform()
         steps, output = quiet_steps()

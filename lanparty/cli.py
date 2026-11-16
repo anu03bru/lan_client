@@ -35,7 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="lan.py",
         description="Install or uninstall the LAN party games. Without a command it shows a menu: "
-        "pick a game number (or a = all), then 1 = install or 2 = uninstall.",
+        "pick a game number (or a = all), then 1 = install, 2 = uninstall or 3 = back to the game list.",
     )
     parser.add_argument("--elevated", action="store_true", help=argparse.SUPPRESS)
     commands = parser.add_subparsers(dest="command", metavar="command")
@@ -151,34 +151,39 @@ def select_games(game_id: str, platform, games: list[Game], steps: Steps) -> lis
 
 def menu(platform, games: list[Game], steps: Steps) -> int:
     available = [game for game in games if platform.supports(game)]
-    steps.info(f"LAN party games ({platform.name})")
-    for number, game in enumerate(available, start=1):
-        status = " [installed]" if platform.is_installed(game) else ""
-        steps.info(f"  {number}) {game.name}{status}")
-    steps.info("  a) all games")
-    steps.info("  q) quit")
+    while True:
+        steps.info(f"LAN party games ({platform.name})")
+        for number, game in enumerate(available, start=1):
+            status = " [installed]" if platform.is_installed(game) else ""
+            steps.info(f"  {number}) {game.name}{status}")
+        steps.info("  a) all games")
+        steps.info("  q) quit")
 
-    choice = ask("Choose: ")
-    if choice in ("", "q"):
-        return EXIT_OK
-    if choice == "a":
-        game_id = "all"
-    elif choice.isdigit() and 1 <= int(choice) <= len(available):
-        game_id = available[int(choice) - 1].id
-    else:
-        steps.info(f"ERROR: '{choice}' is not in the list.", "red")
-        return EXIT_USAGE
+        choice = ask("Choose: ")
+        if choice in ("", "q"):
+            return EXIT_OK
+        if choice == "a":
+            game_id = "all"
+        elif choice.isdigit() and 1 <= int(choice) <= len(available):
+            game_id = available[int(choice) - 1].id
+        else:
+            steps.info(f"ERROR: '{choice}' is not in the list.", "red")
+            return EXIT_USAGE
 
-    steps.info("")
-    steps.info("  1) install")
-    steps.info("  2) uninstall")
-    steps.info("  q) quit")
-    action = ask("Choose: ")
-    commands = {"1": "install", "2": "uninstall"}
-    if action not in commands:
-        steps.info("Cancelled.")
-        return EXIT_OK
-    return main([commands[action], game_id], platform=platform, games=games, steps=steps)
+        steps.info("")
+        steps.info("  1) install")
+        steps.info("  2) uninstall")
+        steps.info("  3) back to the game list")
+        steps.info("  q) quit")
+        action = ask("Choose: ")
+        if action == "3":
+            steps.info("")
+            continue
+        commands = {"1": "install", "2": "uninstall"}
+        if action not in commands:
+            steps.info("Cancelled.")
+            return EXIT_OK
+        return main([commands[action], game_id], platform=platform, games=games, steps=steps)
 
 
 def ask(question: str) -> str:

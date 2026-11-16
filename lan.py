@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Install or uninstall the LAN party games listed in games.toml.
 
-    ./lan.py                          menu: pick a game number, then 1 = install, 2 = uninstall
+    ./lan.py                          menu: pick a game number, then 1 = install, 2 = uninstall, 3 = back
     ./lan.py list
     ./lan.py install <game|all>
     ./lan.py uninstall <game|all> [--yes]
