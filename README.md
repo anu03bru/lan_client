@@ -61,7 +61,7 @@ On Windows just run the "install_assault_cube.ps1" script.
 
 Command:
 ````bash
-$ cd assault_cube
+$ cd assaultcube
 $ .\install_assault_cube.ps1
 ````
 
