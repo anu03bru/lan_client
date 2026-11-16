@@ -66,3 +66,30 @@ $ .\install_assault_cube.ps1
 ````
 
 It will create a shortcut on your desktop environment. You can start the game from there.
+
+# Uninstall
+Removes everything the install scripts set up: the games, **their user data (settings, player names, saves)**, desktop shortcuts, Flatpak permissions and the firewall rules they opened. Running it twice is safe.
+
+### Linux
+Remove all games, then the Flatpak runtimes no app needs anymore:
+```bash
+./uninstall_all.sh
+```
+Remove a single game:
+```bash
+bash supertuxkart/install_supertuxkart.sh --uninstall
+```
+Do **not** run it with `sudo`. It asks for your password itself when it removes firewall rules.
+
+### Windows
+Remove all games (one admin prompt):
+```powershell
+powershell -ExecutionPolicy Bypass -File uninstall_all.ps1
+```
+Remove a single game:
+```powershell
+powershell -ExecutionPolicy Bypass -File supertuxkart\install_supertuxkart.ps1 -Uninstall
+```
+If the admin prompt is confirmed with a **different** Windows account, that account's user folders are cleaned instead of yours.
+
+The macOS AssaultCube install and the AssaultCube server are not covered.

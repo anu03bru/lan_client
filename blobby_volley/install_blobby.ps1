@@ -1,3 +1,8 @@
+param(
+    # Remove the game, its user data and its firewall rule instead of installing it
+    [switch]$Uninstall
+)
+
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -30,6 +35,68 @@ function Invoke-Step {
         Write-Host "Hint: $ErrorHint" -ForegroundColor Red
         throw
     }
+}
+
+$script:uninstallFailed = $false
+
+# Like Invoke-Step, but a failure only warns and the uninstall continues.
+function Invoke-RemoveStep {
+    param(
+        [string]$StepName,
+        [string]$ErrorHint,
+        [scriptblock]$Action
+    )
+
+    Write-Host "==> $StepName"
+    try {
+        & $Action
+        Write-Host "OK" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "WARNING: `"$StepName`" failed." -ForegroundColor Yellow
+        Write-Host "Details: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "Hint: $ErrorHint" -ForegroundColor Yellow
+        $script:uninstallFailed = $true
+    }
+}
+
+# Deletes files and folders. Missing ones are skipped.
+function Remove-PathIfExists {
+    param([string[]]$Path)
+
+    foreach ($itemPath in $Path) {
+        if (Test-Path -LiteralPath $itemPath) {
+            Remove-Item -LiteralPath $itemPath -Recurse -Force
+            Write-Host "Deleted $itemPath"
+        }
+        else {
+            Write-Host "Not found, nothing to do: $itemPath"
+        }
+    }
+}
+
+function Complete-Uninstall {
+    if ($script:uninstallFailed) {
+        Write-Host "Uninstall finished with warnings. Check the lines above." -ForegroundColor Yellow
+        exit 1
+    }
+    Write-Host "Uninstall done." -ForegroundColor Green
+    exit 0
+}
+
+if ($Uninstall) {
+    Invoke-RemoveStep "Remove desktop shortcut" "Delete the shortcut from the desktop manually." {
+        Remove-PathIfExists (Join-Path ([Environment]::GetFolderPath("Desktop")) "Blobby Volley 2.lnk")
+    }
+    Invoke-RemoveStep "Remove Blobby Volley 2 and user data" "Close the game and delete the folders manually." {
+        # TODO: verify the user data folder on a Windows test machine
+        Remove-PathIfExists @(
+            $installDir,
+            (Join-Path $env:APPDATA "blobby"),
+            (Join-Path $env:APPDATA ".blobby")
+        )
+    }
+    Complete-Uninstall
 }
 
 try {

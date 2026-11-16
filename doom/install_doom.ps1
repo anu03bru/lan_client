@@ -1,3 +1,8 @@
+param(
+    # Remove the game, its user data and its firewall rule instead of installing it
+    [switch]$Uninstall
+)
+
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"   # makes Invoke-WebRequest much faster
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -43,6 +48,71 @@ function Expand-Wads {
     foreach ($wadFile in $wadFiles) {
         Copy-Item -Path $wadFile.FullName -Destination $installDir -Force
     }
+}
+
+$script:uninstallFailed = $false
+
+# Like Invoke-Step, but a failure only warns and the uninstall continues.
+function Invoke-RemoveStep {
+    param(
+        [string]$StepName,
+        [string]$ErrorHint,
+        [scriptblock]$Action
+    )
+
+    Write-Host "==> $StepName"
+    try {
+        & $Action
+        Write-Host "OK" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "WARNING: `"$StepName`" failed." -ForegroundColor Yellow
+        Write-Host "Details: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "Hint: $ErrorHint" -ForegroundColor Yellow
+        $script:uninstallFailed = $true
+    }
+}
+
+# Deletes files and folders. Missing ones are skipped.
+function Remove-PathIfExists {
+    param([string[]]$Path)
+
+    foreach ($itemPath in $Path) {
+        if (Test-Path -LiteralPath $itemPath) {
+            Remove-Item -LiteralPath $itemPath -Recurse -Force
+            Write-Host "Deleted $itemPath"
+        }
+        else {
+            Write-Host "Not found, nothing to do: $itemPath"
+        }
+    }
+}
+
+function Complete-Uninstall {
+    if ($script:uninstallFailed) {
+        Write-Host "Uninstall finished with warnings. Check the lines above." -ForegroundColor Yellow
+        exit 1
+    }
+    Write-Host "Uninstall done." -ForegroundColor Green
+    exit 0
+}
+
+if ($Uninstall) {
+    Invoke-RemoveStep "Remove desktop shortcuts" "Delete the shortcuts from the desktop manually." {
+        $desktopPath = [Environment]::GetFolderPath("Desktop")
+        Remove-PathIfExists @(
+            (Join-Path $desktopPath "Odamex LAN.lnk"),
+            (Join-Path $desktopPath "Odamex Singleplayer.lnk")
+        )
+    }
+    Invoke-RemoveStep "Remove Odamex, Freedoom files and user data" "Close Odamex and delete the folders manually." {
+        # TODO: verify on a Windows test machine whether Odamex also writes to My Games
+        Remove-PathIfExists @(
+            $installDir,
+            (Join-Path ([Environment]::GetFolderPath("MyDocuments")) "My Games\Odamex")
+        )
+    }
+    Complete-Uninstall
 }
 
 try {
