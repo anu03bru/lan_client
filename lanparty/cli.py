@@ -105,7 +105,8 @@ def run_command(args: argparse.Namespace, platform, games: list[Game], steps: St
     failed = []
     for game in selected:
         steps.info("")
-        steps.info(f"######## {args.command} {game.name}")
+        # Bold cyan, so each game stands out in a long log
+        steps.info(f"######## {args.command} {game.name}", "heading")
         warnings_before = len(steps.warnings)
         try:
             if args.command == "install":

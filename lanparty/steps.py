@@ -54,7 +54,7 @@ class Steps:
         self._print(message, color)
 
     def _print(self, message: str, color: str | None = None) -> None:
-        codes = {"red": "\033[0;31m", "yellow": "\033[0;33m", "green": "\033[0;32m"}
+        codes = {"red": "\033[0;31m", "yellow": "\033[0;33m", "green": "\033[0;32m", "heading": "\033[1;36m"}
         if self.color and color:
             message = f"{codes[color]}{message}\033[0m"
         print(message, file=self.stream, flush=True)
