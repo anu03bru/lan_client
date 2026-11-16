@@ -7,6 +7,9 @@ $zeroAdVersion = "0.28.0"
 $installerUrl = "https://releases.wildfiregames.com/0ad-$zeroAdVersion-win64.exe"
 $expectedHash = "9b5e1a16d4e0df9c84e052f56fb75da69518d5634c88d2b38db69baee63c16a1"
 
+$hostPort = 20595
+$firewallRuleName = "0 A.D. multiplayer (UDP $hostPort)"
+
 $tempDir = Join-Path $env:TEMP ("0AD-" + [guid]::NewGuid())
 $installerPath = Join-Path $tempDir "0ad-installer.exe"
 
@@ -51,6 +54,33 @@ try {
         if ($installProcess.ExitCode -ne 0) {
             throw "Installer exited with code $($installProcess.ExitCode)"
         }
+    }
+
+    # Port used when hosting a game ("Host Game"). Never fails the install.
+    Write-Host "==> Open firewall port (UDP $hostPort)"
+    $firewallCommand = "`$ErrorActionPreference = 'Stop'; " +
+        "Get-NetFirewallRule -DisplayName '$firewallRuleName' -ErrorAction SilentlyContinue | Remove-NetFirewallRule; " +
+        "New-NetFirewallRule -DisplayName '$firewallRuleName' -Direction Inbound -Protocol UDP -LocalPort $hostPort -Action Allow -Profile Any | Out-Null"
+    try {
+        $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
+            [Security.Principal.WindowsBuiltInRole]::Administrator)
+        if ($isAdmin) {
+            Invoke-Expression $firewallCommand
+        }
+        else {
+            Write-Host "Windows will ask for admin rights to add the firewall rule."
+            $firewallProcess = Start-Process -FilePath "powershell.exe" -Verb RunAs -Wait -PassThru `
+                -ArgumentList "-NoProfile", "-Command", $firewallCommand
+            if ($firewallProcess.ExitCode -ne 0) {
+                throw "Firewall command exited with code $($firewallProcess.ExitCode)"
+            }
+        }
+        Write-Host "OK" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "WARNING: Could not open the firewall port. Hosting a game may not work." -ForegroundColor Yellow
+        Write-Host "Details: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "Run in an admin PowerShell: New-NetFirewallRule -DisplayName '$firewallRuleName' -Direction Inbound -Protocol UDP -LocalPort $hostPort -Action Allow" -ForegroundColor Yellow
     }
 
     Write-Host "Done! Start 0 A.D. from the start menu." -ForegroundColor Green
