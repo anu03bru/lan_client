@@ -33,6 +33,34 @@ checkCommand() {
     command -v "$1" > /dev/null 2>&1
 }
 
+# Usage: openFirewallPorts "Game name" 1234/udp [5678/udp ...]
+# Only does something when ufw is installed and active. Never fails the install.
+openFirewallPorts() {
+    local gameName="$1"
+    shift
+    local portSpec
+    local failed=0
+
+    echo "==> Open firewall ports (ufw): $*"
+    if ! checkCommand ufw; then
+        echo -e "${colorGreen}OK (ufw not installed, nothing to do)${colorReset}"
+        return 0
+    fi
+    if ! sudo ufw status | grep -q "Status: active"; then
+        echo -e "${colorGreen}OK (ufw not active, nothing to do)${colorReset}"
+        return 0
+    fi
+    for portSpec in "$@"; do
+        sudo ufw allow "$portSpec" comment "$gameName" || failed=1
+    done
+    if [[ "$failed" -eq 0 ]]; then
+        echo -e "${colorGreen}OK${colorReset}"
+    else
+        echo -e "${colorYellow}WARNING: Could not open all firewall ports. Hosting a game may not work.${colorReset}"
+        echo -e "${colorYellow}Run manually: sudo ufw allow <port> for each of: $*${colorReset}"
+    fi
+}
+
 runStep "Check flatpak" "Install it with: sudo pacman -S flatpak" checkCommand flatpak
 
 runStep "Add Flathub remote" \
@@ -55,6 +83,9 @@ else
     echo -e "${colorYellow}WARNING: Installed version is \"$installedVersion\", expected \"$expectedVersion\".${colorReset}"
     echo -e "${colorYellow}Multiplayer only works if all players have the same version. Tell the organizer.${colorReset}"
 fi
+
+# Port used when hosting a game ("Host Game")
+openFirewallPorts "0 A.D." 20595/udp
 
 echo -e "${colorGreen}Done! Start 0 A.D. from the start menu.${colorReset}"
 echo -e "${colorGreen}Multiplayer: one player uses \"Host Game\", the others \"Join Game\" with the host's IP.${colorReset}"

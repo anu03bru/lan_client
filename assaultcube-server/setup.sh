@@ -11,6 +11,7 @@ TEMP_DIR=""
 
 RED="$(printf "\033[31m")"
 GREEN="$(printf "\033[32m")"
+YELLOW="$(printf "\033[33m")"
 RESET="$(printf "\033[0m")"
 
 cleanup() {
@@ -75,11 +76,40 @@ move_to_install_dir() {
     mv "$(dirname "$server_script")" "$INSTALL_DIR"
 }
 
+# 28763 = game port (-f in config/servercmdline.txt), 28764 = info port (game port + 1),
+# 28762 = LAN discovery port (fixed in the game source)
+FIREWALL_PORTS="28763/udp 28764/udp 28762/udp"
+
+# Only does something when ufw is installed and active. Never fails the install.
+open_firewall_ports() {
+    echo "==> Open firewall ports (ufw): $FIREWALL_PORTS"
+    if ! command -v ufw >/dev/null 2>&1; then
+        echo "${GREEN}OK (ufw not installed, nothing to do)${RESET}"
+        return 0
+    fi
+    if ! sudo ufw status | grep -q "Status: active"; then
+        echo "${GREEN}OK (ufw not active, nothing to do)${RESET}"
+        return 0
+    fi
+    failed=0
+    for port_spec in $FIREWALL_PORTS; do
+        sudo ufw allow "$port_spec" comment "AssaultCube server" || failed=1
+    done
+    if [ "$failed" -eq 0 ]; then
+        echo "${GREEN}OK${RESET}"
+    else
+        echo "${YELLOW}WARNING: Could not open all firewall ports. Players may not find or join the server.${RESET}"
+        echo "${YELLOW}Run manually: sudo ufw allow <port> for each of: $FIREWALL_PORTS${RESET}"
+    fi
+}
+
 run_step "Check existing install" "Delete $INSTALL_DIR to reinstall." check_not_installed
 run_step "Check required tools" "Install the missing tool with your package manager." check_tools
 run_step "Create temp folder" "Check permissions on /tmp." create_temp_dir
 run_step "Download AssaultCube $ASSAULTCUBE_VERSION" "Check the internet connection and the URL: $ARCHIVE_URL" download_archive
 run_step "Extract archive" "The download may be corrupt. Run the script again." extract_archive
 run_step "Move files to $INSTALL_DIR" "Check write permissions on $SCRIPT_DIR." move_to_install_dir
+
+open_firewall_ports
 
 echo "${GREEN}Done! Edit the files in config/ and start the server with ./start.sh${RESET}"
