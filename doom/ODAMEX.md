@@ -6,7 +6,7 @@ Client setup for playing Doom.
 - **Odamex** is the game engine (the program you run).
 - **Freedoom** provides the game files: maps, graphics and sounds. It is an open source replacement for the original Doom files.
 
-The install script downloads both and sets everything up.
+`lan.py install doom` downloads both and sets everything up.
 
 ## What gets installed
 
@@ -24,38 +24,26 @@ The install script downloads both and sets everything up.
 
 ## Installation
 
-### Linux (CachyOS)
-
-Requirements: `curl`, `flatpak` and `unzip` (the script checks for them).
+Run from the repo root (see the [README](../README.md) for requirements):
 
 ```bash
-cd <path-to-this-repo>
-bash install_doom.sh
+./lan.py install doom        # Linux
+py lan.py install doom       # Windows
 ```
 
-Do **not** run the script with `sudo`.
-
-The script:
+Linux:
 1. Installs Odamex as a Flatpak (including the Flatpak runtime, about 600 MB on first install)
 2. Downloads the Freedoom files to `~/OdamexLAN/wads`
 3. Tells Odamex where to find the game files
 
-Running the script again is safe. It reinstalls everything and keeps your settings.
-
-### Windows
-
-> **TODO:** The Windows script has not been tested yet.
-
-```powershell
-powershell -ExecutionPolicy Bypass -File install_doom.ps1
-```
-
-The script:
+Windows:
 1. Downloads Odamex (portable version) to `%LOCALAPPDATA%\OdamexLAN`
 2. Downloads the Freedoom files into the same folder
-3. Creates an **"Odamex LAN"** shortcut on the desktop (opens Odalaunch)
+3. Creates the **"Odamex LAN"** (Odalaunch) and **"Odamex Singleplayer"** shortcuts on the desktop
 
-No admin rights are needed.
+> **TODO:** The Windows install has not been tested yet.
+
+Running the install again is safe. Remove everything again with `./lan.py uninstall doom`.
 
 ## Starting the game
 

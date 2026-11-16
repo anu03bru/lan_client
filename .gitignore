@@ -1,2 +1,5 @@
 # assaultcube server files
 /assaultcube-server/ac/
+
+# Python bytecode
+__pycache__/
