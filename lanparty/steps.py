@@ -50,6 +50,14 @@ class Steps:
         """A warning that is not a failed step, e.g. a version mismatch."""
         self._print(f"WARNING: {message}", "yellow")
 
+    def version_result(self, installed_version: str, expected_version: str) -> None:
+        """Ends a "Check version" step. A different version only warns: the game still works for single player."""
+        if installed_version and installed_version.startswith(expected_version):
+            self.ok(f"version {installed_version}")
+        else:
+            self.warn(f'Installed version is "{installed_version}", expected "{expected_version}".')
+            self.warn("Multiplayer only works reliably if all players have the same version. Tell the organizer.")
+
     def info(self, message: str, color: str | None = None) -> None:
         self._print(message, color)
 

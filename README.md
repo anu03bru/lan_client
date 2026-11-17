@@ -16,7 +16,7 @@ Other operating systems might work as well. The installer(lan.py)installs (and l
 | AssaultCube | 1.3.0.2 | **Multiplayer → Join a LAN server** |
 
 **All players need the same version of a game**, otherwise they can't play together. `lan.py` installs the right
-version for you. On macOS, pick exactly the version from this table.
+version for you.
 
 ## Download this repository
 
@@ -67,25 +67,24 @@ The games are installed as Flatpaks and show up in your start menu.
 
 ## Install on macOS
 
-`lan.py` does not run on macOS.
+macOS support is new and not tested on a Mac yet. Please report what doesn't work.
 
-**AssaultCube** has an install script:
-```bash
-sh assaultcube/mac_install_assaultcube.sh
-```
-It downloads AssaultCube into `/Applications`. Then start it from Applications.
+1. **Install Python 3.11 or newer** with the installer from [python.org](https://www.python.org/downloads/macos/)
+   (or `brew install python` if you use Homebrew). The `python3` that comes with macOS is too old.
+   After the python.org install, open **Applications → Python 3.x** and double-click
+   **Install Certificates.command**. Without it, downloads fail with `CERTIFICATE_VERIFY_FAILED`.
+2. **Open Terminal in the repository folder** (in Finder: right-click the folder → *New Terminal at Folder*).
+3. **Start the menu:**
+   ```bash
+   ./lan.py
+   ```
+   Pick a game number (or `a` for all games), then `1` to install.
 
-**All other games:** download them from the official websites, using the version from the [game table](#the-games):
+The games are copied into the **Applications folder in your home folder** (`~/Applications`), so no admin password
+is needed. Launchpad and Spotlight find them there. On Apple Silicon Macs, AssaultCube and Blobby Volley may ask
+to install **Rosetta** on first start: confirm it.
 
-| Game | Download |
-|---|---|
-| Doom | Odamex from [odamex.net](https://odamex.net/) and the Freedoom WADs from [freedoom.github.io](https://freedoom.github.io/). See [doom/ODAMEX.md](doom/ODAMEX.md) for which WAD is used for what. |
-| Blobby Volley 2 | [blobbyvolley.de](https://blobbyvolley.de/) |
-| 0 A.D. | [play0ad.com](https://play0ad.com/download/) |
-| SuperTuxKart | [supertuxkart.net](https://supertuxkart.net/Download) |
-
-On first start, macOS may block the app: right-click it in Applications and choose **Open**.
-When a game can't find or join a server, allow it in **System Settings → Privacy & Security → Local Network**.
+When you host a game and macOS asks whether it may accept incoming network connections, click **Allow**.
 
 ---
 
@@ -120,7 +119,7 @@ Start **Odalaunch** (Windows: the **Odamex LAN** desktop shortcut) and double-cl
 - `freedoom2.wad`: campaign maps with monsters for co-op
 
 Linux has three start menu entries: **Odamex** (single player), **Odalaunch** (server list, use this one) and
-**Odasrv** (game server, ignore it). Set your player name in Odamex under **Options → Player Setup**.
+**Odasrv** (game server, ignore it). macOS has **Odamex** and **odalaunch** in Applications. Set your player name in Odamex under **Options → Player Setup**.
 More details in [doom/ODAMEX.md](doom/ODAMEX.md).
 
 ### Blobby Volley 2
@@ -174,12 +173,14 @@ SuperTuxKart 2757/udp and 2759/udp. Doom and AssaultCube use a separate server m
 ### `lan.py` problems
 | Problem | Solution |
 |---|---|
-| `Python 3.11 or newer is needed` | Windows: `winget install Python.Python.3.12`. Linux: update Python with your package manager. |
+| `Python 3.11 or newer is needed` | Windows: `winget install Python.Python.3.12`. macOS: installer from [python.org](https://www.python.org/downloads/macos/). Linux: update Python with your package manager. |
+| macOS: download fails with `CERTIFICATE_VERIFY_FAILED` | Open **Applications → Python 3.x** and double-click **Install Certificates.command**. |
 | `Do not run this with sudo or as root` | Run `./lan.py` without `sudo`. |
 | `Check flatpak` fails (Linux) | Install Flatpak: `sudo pacman -S flatpak`. |
 | A step fails | Read the `ERROR` and `Hint` lines. They say which step failed and what to try. Running the install again is safe. |
 | Windows: games installed in the wrong user folder | The admin prompt was confirmed with a different account. Uninstall, then install again and confirm with your own account. |
-| macOS: "app can't be opened" | Right-click the app in Applications and choose **Open**. |
+| macOS: "app can't be opened" | Right-click the app in **~/Applications** and choose **Open**. If that isn't offered: **System Settings → Privacy & Security** → **Open Anyway**. |
+| macOS: a step says `... not found in the download` | The app name in `games.toml` is wrong. The message lists the right name; tell the organizer. |
 
 ---
 

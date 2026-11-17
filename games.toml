@@ -1,5 +1,6 @@
 # Games for lan.py. One table per game; the table name is the id used on the command line
-# (e.g. `./lan.py install supertuxkart`).
+# (e.g. `./lan.py install supertuxkart`). Values that still need checking on a test machine are listed in
+# .claude/open.md.
 #
 # Game fields
 #   name      Display name. Also the ufw rule comment (Linux) and the start of the firewall rule name (Windows),
@@ -21,12 +22,20 @@
 #   optional: shortcuts = [{ name, target }]            Desktop shortcuts; target is an .exe inside install_dir
 #   optional: data = [...]                              User data folders deleted on uninstall
 #
-# [[<id>.assets]]  url, sha256, extract, linux_dest, windows_dest
+# [<id>.macos]
+#   type = "dmg"    url, sha256, apps                   Disk image
+#   type = "zip"    url, sha256, apps                   ZIP file
+#   apps = ["X.app", ...]                               App bundles in the download (top level or one folder deeper).
+#                                                       Copied into ~/Applications, removed on uninstall
+#   optional: arm64 = { url, sha256 }                   Separate build for Apple Silicon Macs
+#   optional: data = [...]                              User data folders deleted on uninstall
+#
+# [[<id>.assets]]  url, sha256, extract, linux_dest, windows_dest, macos_dest
 #   Extra ZIP downloads. Files matching `extract` (e.g. "*.wad") are copied into the dest folder.
-#   The dest folders are deleted on uninstall.
+#   The dest folders are deleted on uninstall. macos_dest is only needed when the game has a macos table.
 #
 # Paths: ~ is your home folder. On Windows %APPDATA%, %LOCALAPPDATA%, %USERPROFILE%, %DOCUMENTS% and %DESKTOP%
-# can be used. Use / as separator on both systems.
+# can be used. Use / as separator on all systems.
 
 [doom]
 name = "Doom (Odamex + Freedoom)"
@@ -52,8 +61,15 @@ shortcuts = [
     { name = "Odamex LAN", target = "odalaunch.exe" },
     { name = "Odamex Singleplayer", target = "odamex.exe" },
 ]
-# TODO: verify on a Windows test machine whether Odamex writes to My Games
 data = ["%DOCUMENTS%/My Games/Odamex"]
+
+[doom.macos]
+type = "dmg"
+url = "https://github.com/odamex/odamex/releases/download/12.3.0/odamex-macos-12.3.0.dmg"
+sha256 = "8b291c12dac93bf2be31ac21dcf55b022d9918d1f1f4477cdf65d4e9ce6f6d74"
+apps = ["Odamex.app", "odalaunch.app"]
+# Odamex's user folder on macOS. It also searches it for WADs, see assets below
+data = ["~/.odamex"]
 
 [[doom.assets]]
 url = "https://github.com/freedoom/freedoom/releases/download/v0.13.0/freedm-0.13.0.zip"
@@ -61,6 +77,7 @@ sha256 = "b420f13508ef745d7b38e83d15e55e0fc0b09d9a503c96741cddd9773d43f7c9"
 extract = "*.wad"
 linux_dest = "~/OdamexLAN/wads"
 windows_dest = "%LOCALAPPDATA%/OdamexLAN"
+macos_dest = "~/.odamex"
 
 [[doom.assets]]
 url = "https://github.com/freedoom/freedoom/releases/download/v0.13.0/freedoom-0.13.0.zip"
@@ -68,6 +85,7 @@ sha256 = "3f9b264f3e3ce503b4fb7f6bdcb1f419d93c7b546f4df3e874dd878db9688f59"
 extract = "*.wad"
 linux_dest = "~/OdamexLAN/wads"
 windows_dest = "%LOCALAPPDATA%/OdamexLAN"
+macos_dest = "~/.odamex"
 
 
 [blobby_volley]
@@ -83,9 +101,15 @@ type = "zip"
 url = "https://sourceforge.net/projects/blobby/files/Blobby%20Volley%202%20(Win32)/1.1.1/blobby2-win32-1.1.1.zip/download"
 sha256 = "157b8d340bf89d1a6583d689dbb716099762211944c3ca7b588947b6cd7187ff"
 install_dir = "%LOCALAPPDATA%/BlobbyVolley2"
-shortcuts = [{ name = "Blobby Volley 2", target = "blobby.exe" }]  # TODO: verify the exe name
-# TODO: verify the user data folder on a Windows test machine
+shortcuts = [{ name = "Blobby Volley 2", target = "blobby.exe" }]
 data = ["%APPDATA%/blobby", "%APPDATA%/.blobby"]
+
+[blobby_volley.macos]
+type = "dmg"
+url = "https://sourceforge.net/projects/blobby/files/Blobby%20Volley%202%20%28MacOSX%29/1.1.1/blobby2-macosx-1.1.1.dmg/download"
+sha256 = "a2e2a67a3c77a0ace49b4db3b4ee2eaeba8f9c5b02a15b3eec5b033bba36a879"
+apps = ["blobby.app"]
+data = ["~/Library/Application Support/blobby"]
 
 
 [0ad]
@@ -100,11 +124,18 @@ app_id = "com.play0ad.zeroad"
 
 [0ad.windows]
 type = "nsis"
-# TODO: verify the exact x64 installer URL on releases.wildfiregames.com
 url = "https://releases.wildfiregames.com/0ad-0.28.0-win64.exe"
 sha256 = "9b5e1a16d4e0df9c84e052f56fb75da69518d5634c88d2b38db69baee63c16a1"
 uninstall_name = "0 A.D.*"
 data = ["%APPDATA%/0ad", "%LOCALAPPDATA%/0ad", "%DOCUMENTS%/My Games/0ad"]
+
+[0ad.macos]
+type = "dmg"
+url = "https://releases.wildfiregames.com/0ad-0.28.0-macos-x86_64.dmg"
+sha256 = "3d30cbafb293fb1178c08075ed8336d1dbfb1090d3702ada76092e85e9c4f076"
+arm64 = { url = "https://releases.wildfiregames.com/0ad-0.28.0-macos-aarch64.dmg", sha256 = "8c53566123fed9a79766c364e543d6e9dc7c84f642c78d2bb5892eeea9c4c052" }
+apps = ["0 A.D..app"]
+data = ["~/Library/Application Support/0ad", "~/Library/Caches/0ad", "~/Library/Logs/0ad"]
 
 
 [supertuxkart]
@@ -125,6 +156,13 @@ sha256 = "a1260ebb73dd9da13ec3e37f526f29e494b3b66c00c05fd70767b30a4497d95e"
 uninstall_name = "SuperTuxKart*"
 data = ["%APPDATA%/supertuxkart", "%LOCALAPPDATA%/supertuxkart"]
 
+[supertuxkart.macos]
+type = "zip"
+url = "https://github.com/supertuxkart/stk-code/releases/download/1.5/SuperTuxKart-1.5-mac-signed.zip"
+sha256 = "c266acdb8a63a3fe30f52652d9b749f5beba4abeb9e54382fbb934b00c53b303"
+apps = ["SuperTuxKart.app"]
+data = ["~/Library/Application Support/SuperTuxKart"]
+
 
 [assaultcube]
 name = "AssaultCube"
@@ -139,5 +177,11 @@ type = "nsis"
 url = "https://github.com/assaultcube/AC/releases/download/v1.3.0.2/AssaultCube_v1.3.0.2_LockdownEdition.exe"
 sha256 = "77eff4497232562eeb1862f97d484777202e8ac42c411093a821234045ee61a5"
 uninstall_name = "AssaultCube*"
-# TODO: verify the user data folder on a Windows test machine
 data = ["%DOCUMENTS%/My Games/AssaultCube"]
+
+[assaultcube.macos]
+type = "dmg"
+url = "https://github.com/assaultcube/AC/releases/download/v1.3.0.2/AssaultCube_v1.3.0.2_LockdownEdition.dmg"
+sha256 = "3aba97191904d9167e9f6c8caf8c472453fb4f987acb127ee2c7d2c2f8128eba"
+apps = ["AssaultCube.app"]
+data = ["~/Library/Application Support/assaultcube"]

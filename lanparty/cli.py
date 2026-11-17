@@ -28,7 +28,11 @@ def make_platform(runner: Runner, steps: Steps):
         from .windows import Windows
 
         return Windows(runner, steps)
-    raise OSError("Only Linux and Windows are supported. On macOS use assaultcube/mac_install_assaultcube.sh.")
+    if sys.platform == "darwin":
+        from .macos import Macos
+
+        return Macos(runner, steps)
+    raise OSError(f"Only Linux, Windows and macOS are supported, not {sys.platform}.")
 
 
 def build_parser() -> argparse.ArgumentParser:

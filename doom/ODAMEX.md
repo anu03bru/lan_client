@@ -27,7 +27,7 @@ Client setup for playing Doom.
 Run from the repo root (see the [README](../README.md) for requirements):
 
 ```bash
-./lan.py install doom        # Linux
+./lan.py install doom        # Linux and macOS
 py lan.py install doom       # Windows
 ```
 
@@ -41,7 +41,9 @@ Windows:
 2. Downloads the Freedoom files into the same folder
 3. Creates the **"Odamex LAN"** (Odalaunch) and **"Odamex Singleplayer"** shortcuts on the desktop
 
-> **TODO:** The Windows install has not been tested yet.
+macOS:
+1. Copies **Odamex** and **odalaunch** from the Odamex disk image into `~/Applications`
+2. Downloads the Freedoom files to `~/.odamex`, Odamex's own folder, where it looks for game files
 
 Running the install again is safe. Remove everything again with `./lan.py uninstall doom`.
 
@@ -50,6 +52,8 @@ Running the install again is safe. Remove everything again with `./lan.py uninst
 ### Using the menu (GUI)
 
 **Linux:** After installation, the start menu has three new entries: **Odamex**, **Odalaunch** and **Odasrv**.
+
+**macOS:** Start **odalaunch** (or **Odamex**) from Applications or Launchpad.
 
 **Windows:** Use the **"Odamex LAN"** shortcut on the desktop (Odalaunch), or open `%LOCALAPPDATA%\OdamexLAN` and start `odamex.exe` or `odalaunch.exe`.
 

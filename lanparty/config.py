@@ -26,6 +26,7 @@ class Asset:
     extract: str
     linux_dest: str
     windows_dest: str
+    macos_dest: str | None = None
 
 
 @dataclass(frozen=True)
@@ -51,6 +52,17 @@ class WindowsSpec:
 
 
 @dataclass(frozen=True)
+class MacosSpec:
+    type: str
+    url: str
+    sha256: str
+    apps: tuple[str, ...]
+    arm64_url: str | None = None
+    arm64_sha256: str | None = None
+    data: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class Game:
     id: str
     name: str
@@ -59,6 +71,7 @@ class Game:
     hint: str | None = None
     linux: LinuxSpec | None = None
     windows: WindowsSpec | None = None
+    macos: MacosSpec | None = None
     assets: tuple[Asset, ...] = ()
 
 
@@ -75,6 +88,11 @@ WINDOWS_TYPES = {
     "nsis": ({"type", "url", "sha256", "uninstall_name"}, {"data"}),
     "zip": ({"type", "url", "sha256", "install_dir"}, {"shortcuts", "data"}),
 }
+MACOS_TYPES = {
+    "dmg": ({"type", "url", "sha256", "apps"}, {"arm64", "data"}),
+    "zip": ({"type", "url", "sha256", "apps"}, {"arm64", "data"}),
+}
+PLATFORMS = ("linux", "windows", "macos")
 
 
 def load_games(path: Path) -> list[Game]:
@@ -99,17 +117,20 @@ def parse_games(tables: dict[str, Any]) -> list[Game]:
 
 def _parse_game(game_id: str, table: Any) -> Game:
     where = f"[{game_id}]"
-    _check_keys(where, table, {"name"}, {"version", "ports", "hint", "linux", "windows", "assets"})
+    _check_keys(where, table, {"name"}, {"version", "ports", "hint", *PLATFORMS, "assets"})
     ports = _strings(where, table, "ports")
     for port in ports:
         if not PORT_PATTERN.match(port):
             raise ConfigError(f"{where}: port {port!r} must look like 2759/udp")
-    if "linux" not in table and "windows" not in table:
-        raise ConfigError(f"{where}: needs a [{game_id}.linux] or [{game_id}.windows] table")
+    if not any(platform in table for platform in PLATFORMS):
+        raise ConfigError(f"{where}: needs a [{game_id}.linux], [{game_id}.windows] or [{game_id}.macos] table")
 
     assets = table.get("assets", [])
     if not isinstance(assets, list):
         raise ConfigError(f"{where}: assets must be written as [[{game_id}.assets]] tables")
+    parsed_assets = tuple(_parse_asset(f"[[{game_id}.assets]] #{index + 1}", asset) for index, asset in enumerate(assets))
+    if "macos" in table and any(asset.macos_dest is None for asset in parsed_assets):
+        raise ConfigError(f"{where}: every [[{game_id}.assets]] needs a macos_dest, because the game has a macos table")
 
     return Game(
         id=game_id,
@@ -119,7 +140,8 @@ def _parse_game(game_id: str, table: Any) -> Game:
         hint=_string(where, table, "hint"),
         linux=_parse_linux(f"[{game_id}.linux]", table["linux"]) if "linux" in table else None,
         windows=_parse_windows(f"[{game_id}.windows]", table["windows"]) if "windows" in table else None,
-        assets=tuple(_parse_asset(f"[[{game_id}.assets]] #{index + 1}", asset) for index, asset in enumerate(assets)),
+        macos=_parse_macos(f"[{game_id}.macos]", table["macos"]) if "macos" in table else None,
+        assets=parsed_assets,
     )
 
 
@@ -167,14 +189,38 @@ def _parse_windows(where: str, table: Any) -> WindowsSpec:
     )
 
 
+def _parse_macos(where: str, table: Any) -> MacosSpec:
+    spec_type = _spec_type(where, table, MACOS_TYPES)
+    required, optional = MACOS_TYPES[spec_type]
+    _check_keys(where, table, required, optional)
+
+    apps = _strings(where, table, "apps")
+    if not apps or not all(app.endswith(".app") and "/" not in app for app in apps):
+        raise ConfigError(f"{where}: apps must be a non-empty list of names like \"SuperTuxKart.app\"")
+
+    arm64 = table.get("arm64", {})
+    _check_keys(f"{where} arm64", arm64, {"url", "sha256"} if arm64 else set(), set() if arm64 else {"url", "sha256"})
+
+    return MacosSpec(
+        type=spec_type,
+        url=_string(where, table, "url"),
+        sha256=_sha256(where, table),
+        apps=apps,
+        arm64_url=_string(f"{where} arm64", arm64, "url"),
+        arm64_sha256=_sha256(f"{where} arm64", arm64),
+        data=_strings(where, table, "data"),
+    )
+
+
 def _parse_asset(where: str, table: Any) -> Asset:
-    _check_keys(where, table, {"url", "sha256", "extract", "linux_dest", "windows_dest"}, set())
+    _check_keys(where, table, {"url", "sha256", "extract", "linux_dest", "windows_dest"}, {"macos_dest"})
     return Asset(
         url=_string(where, table, "url"),
         sha256=_sha256(where, table),
         extract=_string(where, table, "extract"),
         linux_dest=_string(where, table, "linux_dest"),
         windows_dest=_string(where, table, "windows_dest"),
+        macos_dest=_string(where, table, "macos_dest"),
     )
 
 

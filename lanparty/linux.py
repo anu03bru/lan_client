@@ -126,12 +126,7 @@ class Linux:
 
     def _check_version(self, game: Game, spec: LinuxSpec) -> None:
         self.steps.info("==> Check version")
-        installed_version = self._installed_version(spec.app_id)
-        if installed_version and installed_version.startswith(game.version):
-            self.steps.ok(f"version {installed_version}")
-        else:
-            self.steps.warn(f'Installed version is "{installed_version}", expected "{game.version}".')
-            self.steps.warn("Multiplayer only works reliably if all players have the same version. Tell the organizer.")
+        self.steps.version_result(self._installed_version(spec.app_id), game.version)
 
     def _open_ports(self, game: Game) -> str | None:
         reason = self._ufw_unavailable()
