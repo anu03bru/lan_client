@@ -35,6 +35,7 @@ class LinuxSpec:
     app_id: str
     url: str | None = None
     sha256: str | None = None
+    commit: str | None = None
     override_env: dict[str, str] = field(default_factory=dict)
     override_filesystem: tuple[str, ...] = ()
     data: tuple[str, ...] = ()
@@ -81,7 +82,7 @@ SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 # type -> (required keys, optional keys)
 LINUX_TYPES = {
-    "flatpak": ({"type", "app_id"}, {"overrides", "data"}),
+    "flatpak": ({"type", "app_id"}, {"commit", "overrides", "data"}),
     "flatpak-bundle": ({"type", "app_id", "url", "sha256"}, {"overrides", "data"}),
 }
 WINDOWS_TYPES = {
@@ -161,6 +162,7 @@ def _parse_linux(where: str, table: Any) -> LinuxSpec:
         app_id=_string(where, table, "app_id"),
         url=_string(where, table, "url"),
         sha256=_sha256(where, table),
+        commit=_commit(where, table),
         override_env=dict(override_env),
         override_filesystem=_strings(f"{where} overrides", overrides, "filesystem"),
         data=_strings(where, table, "data"),
@@ -255,6 +257,13 @@ def _strings(where: str, table: dict, key: str) -> tuple[str, ...]:
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise ConfigError(f"{where}: {key} must be a list of strings")
     return tuple(value)
+
+
+def _commit(where: str, table: dict) -> str | None:
+    value = _string(where, table, "commit")
+    if value is not None and not SHA256_PATTERN.match(value):
+        raise ConfigError(f"{where}: commit must be the 64 hex characters from flatpak remote-info --log")
+    return value
 
 
 def _sha256(where: str, table: dict) -> str | None:

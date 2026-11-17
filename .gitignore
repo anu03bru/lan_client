@@ -1,5 +1,10 @@
 # assaultcube server files
 /assaultcube-server/ac/
+# real admin password, see config/serverpwd.cfg.example
+/assaultcube-server/config/serverpwd.cfg
+
+# IDE settings
+.idea/
 
 # Python bytecode
 __pycache__/

@@ -11,6 +11,9 @@
 #
 # [<id>.linux]
 #   type = "flatpak"          app_id                    App from Flathub
+#     optional: commit = "..."                          Pins the Flathub build (x86_64). Get it from
+#                                                       flatpak remote-info --log flathub <app_id>, newest commit
+#                                                       whose Version matches `version`
 #   type = "flatpak-bundle"   app_id, url, sha256       A .flatpak file
 #   optional: data = [...]                              Extra folders deleted on uninstall
 #   optional: [<id>.linux.overrides] env = {...}, filesystem = [...]   Flatpak permissions
@@ -121,6 +124,7 @@ hint = "Multiplayer: one player uses 'Host Game', the others 'Join Game' with th
 [0ad.linux]
 type = "flatpak"
 app_id = "com.play0ad.zeroad"
+commit = "2aa7e3f4b8123976a10f039a150f4dc34066267c0893821449594e3244cb09b2"  # 0.28.0
 
 [0ad.windows]
 type = "nsis"
@@ -148,6 +152,7 @@ hint = "Multiplayer: Online -> Local network. The host uses 'Create server'."
 [supertuxkart.linux]
 type = "flatpak"
 app_id = "net.supertuxkart.SuperTuxKart"
+commit = "a6969d346d0915bc1f4b2ba2fc4e69475d5bbb8ece84cca59480f214e15bc692"  # 1.5
 
 [supertuxkart.windows]
 type = "nsis"

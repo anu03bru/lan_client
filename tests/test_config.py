@@ -64,6 +64,10 @@ class ValidationTest(unittest.TestCase):
     def test_missing_required_field(self):
         self.assert_error(VALID_GAME.replace('app_id = "net.supertuxkart.SuperTuxKart"', ""), "missing app_id")
 
+    def test_flatpak_commit(self):
+        self.assertEqual(parse(VALID_GAME + f'commit = "{SHA}"\n')[0].linux.commit, SHA)
+        self.assert_error(VALID_GAME + 'commit = "abc"\n', "commit must be")
+
     def test_bad_port(self):
         self.assert_error(VALID_GAME.replace("2759/udp", "2759"), "port '2759' must look like")
 

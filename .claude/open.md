@@ -14,6 +14,9 @@ When an item is resolved, fix the value in the named file (if needed) and delete
 - [ ] **Blobby Volley: user data folder.** `games.toml` → `[blobby_volley.windows] data` lists `%APPDATA%/blobby` and
       `%APPDATA%/.blobby` as guesses. The Blobby source uses `PHYSFS_getPrefDir("org.dk", "blobby")`, which on Windows
       is probably `%APPDATA%/org.dk/blobby`.
+- [ ] **ZIP games: settings in the install folder?** A reinstall of a *new* version deletes the install folder
+      (`remove_other_version` in `lanparty/windows.py`). Check whether Odamex or Blobby Volley keep the player name
+      there; if so, those files need to be carried over.
 - [ ] **AssaultCube: user data folder.** `games.toml` → `[assaultcube.windows] data` assumes
       `Documents/My Games/AssaultCube`.
 
@@ -35,6 +38,17 @@ When an item is resolved, fix the value in the named file (if needed) and delete
       (after installing Rosetta) and adjust the README note.
 - [ ] **Gatekeeper.** Python downloads don't get the quarantine flag, so unsigned apps should start without the
       "can't be opened" dialog. Confirm, then the README troubleshooting row about it can be shortened.
+
+## Linux
+
+- [ ] **Updating the pinned commits.** `commit` in `games.toml` pins 0 A.D. and SuperTuxKart. A player's own
+      `flatpak update` still moves to the newest build. Before the party, re-run `./lan.py install all` on every PC,
+      or check `flatpak remote-info --log flathub <app_id>` and update the commits if the game version changed.
+
+## AssaultCube server
+
+- [ ] **Old admin password in git history.** `assaultcube-server/config/serverpwd.cfg` is no longer tracked, but
+      `changeme` is still in the history. Use a new password on the server, don't reuse it.
 
 ## Resolved (2026-11-17)
 

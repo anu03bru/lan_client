@@ -6,6 +6,17 @@ from lanparty.linux import Linux, find_ufw_rule
 from lanparty.steps import StepFailed
 from tests.fakes import FakeRunner, FakeUfw, game_from_toml, quiet_steps
 
+COMMIT = "a6969d346d0915bc1f4b2ba2fc4e69475d5bbb8ece84cca59480f214e15bc692"
+STK_PINNED = game_from_toml(f"""
+[supertuxkart]
+name = "SuperTuxKart"
+version = "1.5"
+[supertuxkart.linux]
+type = "flatpak"
+app_id = "net.supertuxkart.SuperTuxKart"
+commit = "{COMMIT}"
+""")
+
 STK = game_from_toml("""
 [supertuxkart]
 name = "SuperTuxKart"
@@ -51,13 +62,13 @@ class FlatpakState:
         return 0, ""
 
 
-def make_linux(flatpak: FlatpakState, ufw: FakeUfw, home: Path):
+def make_linux(flatpak: FlatpakState, ufw: FakeUfw, home: Path, machine: str = "x86_64"):
     def respond(args):
         return ufw.respond(args) or flatpak.respond(args)
 
     runner = FakeRunner(respond=respond)
     steps, output = quiet_steps()
-    return Linux(runner, steps, home=home), runner, output
+    return Linux(runner, steps, home=home, machine=machine), runner, output
 
 
 class LinuxInstallTest(unittest.TestCase):
@@ -72,10 +83,25 @@ class LinuxInstallTest(unittest.TestCase):
         self.assertEqual(ufw.rules, [("22/tcp", ""), ("2759/udp", "SuperTuxKart"), ("2757/udp", "SuperTuxKart")])
         self.assertIn("OK (version 1.5)", output.getvalue())
 
+    def test_pinned_commit_is_installed_after_flathub_install(self):
+        linux, runner, _output = make_linux(FlatpakState(set()), FakeUfw([]), self.home)
+        linux.install(STK_PINNED)
+        calls = runner.joined()
+        install = calls.index("flatpak install --user -y --or-update flathub net.supertuxkart.SuperTuxKart")
+        pin = calls.index(f"flatpak update --user -y --commit={COMMIT} net.supertuxkart.SuperTuxKart")
+        self.assertLess(install, pin)
+
+    def test_pinned_commit_is_skipped_on_other_architectures(self):
+        linux, runner, output = make_linux(FlatpakState(set()), FakeUfw([]), self.home, machine="aarch64")
+        linux.install(STK_PINNED)
+        self.assertFalse(any("--commit=" in call for call in runner.joined()))
+        self.assertIn("The pinned build is for x86_64 PCs, this is aarch64.", output.getvalue())
+
     def test_version_mismatch_only_warns(self):
         linux, _runner, output = make_linux(FlatpakState(set(), version="1.4"), FakeUfw([]), self.home)
         linux.install(STK)
         self.assertIn('WARNING: Installed version is "1.4", expected "1.5".', output.getvalue())
+        self.assertEqual(linux.steps.warnings, ["Check version"])
 
     def test_inactive_ufw_is_skipped(self):
         ufw = FakeUfw([], active=False)
@@ -144,13 +170,18 @@ class UfwParsingTest(unittest.TestCase):
      --                         ------      ----
 [ 1] 22/tcp                     ALLOW IN    Anywhere
 [ 2] 20595/udp                  ALLOW IN    Anywhere                   # 0 A.D.
+[ 4] 28763/udp                  ALLOW IN    Anywhere                   # AssaultCube server
 [10] 2759/udp (v6)              ALLOW IN    Anywhere (v6)              # SuperTuxKart
 """
 
     def test_finds_rule_by_comment(self):
-        self.assertEqual(find_ufw_rule(self.STATUS, "0 A.D."), 2)
-        self.assertEqual(find_ufw_rule(self.STATUS, "SuperTuxKart"), 10)
-        self.assertIsNone(find_ufw_rule(self.STATUS, "Blobby Volley 2"))
+        self.assertEqual(find_ufw_rule(self.STATUS, ("0 A.D.",)), 2)
+        self.assertEqual(find_ufw_rule(self.STATUS, ("SuperTuxKart",)), 10)
+        self.assertIsNone(find_ufw_rule(self.STATUS, ("Blobby Volley 2",)))
+
+    def test_comment_must_match_exactly(self):
+        self.assertIsNone(find_ufw_rule(self.STATUS, ("AssaultCube",)))
+        self.assertIsNone(find_ufw_rule(self.STATUS, ("0 A",)))
 
 
 if __name__ == "__main__":

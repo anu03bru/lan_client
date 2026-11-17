@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import platform
 import re
 import tempfile
 from pathlib import Path
@@ -14,15 +15,19 @@ from .steps import Steps
 
 FLATHUB_URL = "https://dl.flathub.org/repo/flathub.flatpakrepo"
 UFW_RULE_NUMBER = re.compile(r"^\[\s*(\d+)\]")
+# ufw comments written by earlier install scripts, also removed on uninstall.
+# Never add "AssaultCube server": those rules belong to the dedicated server (assaultcube-server/setup.sh).
+OLD_UFW_COMMENTS = {"SuperTuxKart": ("SuperTuxKart server",)}
 
 
 class Linux:
     name = "Linux"
 
-    def __init__(self, runner: Runner, steps: Steps, home: Path | None = None) -> None:
+    def __init__(self, runner: Runner, steps: Steps, home: Path | None = None, machine: str | None = None) -> None:
         self.runner = runner
         self.steps = steps
         self.home = home or Path.home()
+        self.machine = machine or platform.machine()
 
     def check_ready(self) -> None:
         if os.geteuid() == 0:
@@ -65,6 +70,8 @@ class Linux:
                     self.runner.run,
                     ["flatpak", "install", "--user", "-y", "--or-update", "flathub", spec.app_id],
                 )
+                if spec.commit:
+                    self._pin_commit(game, spec)
             else:
                 bundle_path = temp_dir / file_name_from_url(spec.url)
                 steps.run(
@@ -107,6 +114,19 @@ class Linux:
                 f"Run manually: sudo ufw allow <port> comment '{game.name}' for each of: {' '.join(game.ports)}",
                 self._open_ports, game,
             )
+
+    def _pin_commit(self, game: Game, spec: LinuxSpec) -> None:
+        # Flathub always installs its newest build. Going to the pinned commit keeps every Linux PC on the same build
+        # as the other players, even when Flathub updates the game shortly before the party.
+        if self.machine != "x86_64":
+            self.steps.warn(f"The pinned build is for x86_64 PCs, this is {self.machine}. Kept the newest Flathub build.")
+            return
+        self.steps.run(
+            f"Switch {game.name} to the pinned build",
+            f"Try running: flatpak update --user --commit={spec.commit} {spec.app_id}",
+            self.runner.run,
+            ["flatpak", "update", "--user", "-y", f"--commit={spec.commit}", spec.app_id],
+        )
 
     def _apply_overrides(self, spec: LinuxSpec) -> None:
         for name, value in spec.override_env.items():
@@ -206,8 +226,8 @@ class Linux:
             self.runner.run(["flatpak", "remote-delete", "--user", "--force", remote])
         return f"deleted {', '.join(remotes)}" if remotes else "nothing to do"
 
-    def _close_ports(self, comment: str) -> str:
-        """Deletes every ufw rule whose comment contains the game name. Other rules are never touched."""
+    def _close_ports(self, game_name: str) -> str:
+        """Deletes every ufw rule whose comment is the game name (or an old comment of it). Other rules stay."""
         reason = self._ufw_unavailable()
         if reason:
             return reason
@@ -215,7 +235,7 @@ class Linux:
         # One rule at a time, because rule numbers shift after each delete
         while deleted_rules < 50:
             result = self.runner.run(["sudo", "ufw", "status", "numbered"], capture=True)
-            rule_number = find_ufw_rule(result.stdout, comment)
+            rule_number = find_ufw_rule(result.stdout, (game_name, *OLD_UFW_COMMENTS.get(game_name, ())))
             if rule_number is None:
                 break
             self.runner.run(["sudo", "ufw", "--force", "delete", str(rule_number)], capture=True)
@@ -260,11 +280,12 @@ class Linux:
         return list(dict.fromkeys(self._path(text) for text in texts))
 
 
-def find_ufw_rule(status_output: str, comment: str) -> int | None:
-    """Returns the number of the first rule in `ufw status numbered` whose comment contains the text."""
+def find_ufw_rule(status_output: str, comments: tuple[str, ...]) -> int | None:
+    """Returns the number of the first rule in `ufw status numbered` whose comment is exactly one of `comments`.
+    Exact, so uninstalling "AssaultCube" keeps the "AssaultCube server" rules."""
     for line in status_output.splitlines():
         match = UFW_RULE_NUMBER.match(line.strip())
-        if match and f"# {comment}" in line:
+        if match and line.partition("# ")[2].strip() in comments:
             return int(match.group(1))
     return None
 

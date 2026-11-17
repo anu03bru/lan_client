@@ -2,7 +2,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from lanparty.windows import UninstallEntry, Windows, firewall_rules, ps_quote, uninstaller_path
+from lanparty.windows import (VERSION_MARKER, UninstallEntry, Windows, firewall_rules, ps_quote,
+                              remove_other_version, uninstaller_path)
 from tests.fakes import FakeRunner, game_from_toml, quiet_steps
 
 STK = game_from_toml("""
@@ -125,6 +126,37 @@ class ZipTest(unittest.TestCase):
         self.assertFalse((self.root / "localappdata/BlobbyVolley2").exists())
         self.assertFalse((self.root / "desktop/Blobby Volley 2.lnk").exists())
         self.assertFalse(windows.is_installed(BLOBBY))
+
+
+class VersionMarkerTest(unittest.TestCase):
+    def setUp(self):
+        self.install_dir = Path(tempfile.mkdtemp()) / "BlobbyVolley2"
+
+    def install(self, url: str, files: list[str]):
+        self.install_dir.mkdir(parents=True, exist_ok=True)
+        for name in files:
+            (self.install_dir / name).write_text("")
+        (self.install_dir / VERSION_MARKER).write_text(url)
+
+    def test_other_version_is_removed(self):
+        self.install("https://example.invalid/blobby-1.0.zip", ["old.dll"])
+        self.assertIsNone(remove_other_version(self.install_dir, "https://example.invalid/blobby-1.1.zip"))
+        self.assertFalse(self.install_dir.exists())
+
+    def test_same_version_keeps_settings(self):
+        self.install("https://example.invalid/blobby-1.1.zip", ["config.xml"])
+        self.assertEqual(remove_other_version(self.install_dir, "https://example.invalid/blobby-1.1.zip"),
+                         "same version, kept")
+        self.assertTrue((self.install_dir / "config.xml").exists())
+
+    def test_folder_without_marker_is_removed(self):
+        self.install_dir.mkdir(parents=True)
+        (self.install_dir / "old.dll").write_text("")
+        remove_other_version(self.install_dir, "https://example.invalid/blobby-1.1.zip")
+        self.assertFalse(self.install_dir.exists())
+
+    def test_not_installed(self):
+        self.assertEqual(remove_other_version(self.install_dir, "x"), "not installed, nothing to do")
 
 
 if __name__ == "__main__":

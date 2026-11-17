@@ -172,8 +172,9 @@ def menu(platform, games: list[Game], steps: Steps) -> int:
         elif choice.isdigit() and 1 <= int(choice) <= len(available):
             game_id = available[int(choice) - 1].id
         else:
-            steps.info(f"ERROR: '{choice}' is not in the list.", "red")
-            return EXIT_USAGE
+            steps.info(f"ERROR: '{choice}' is not in the list. Choose again.", "red")
+            steps.info("")
+            continue
 
         steps.info("")
         steps.info("  1) install")

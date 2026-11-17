@@ -57,6 +57,8 @@ class Steps:
         else:
             self.warn(f'Installed version is "{installed_version}", expected "{expected_version}".')
             self.warn("Multiplayer only works reliably if all players have the same version. Tell the organizer.")
+            # Listed once in the final summary, so the install doesn't end with a plain "Done!"
+            self.warnings.append("Check version")
 
     def info(self, message: str, color: str | None = None) -> None:
         self._print(message, color)

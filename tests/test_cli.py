@@ -105,6 +105,25 @@ class CliTest(unittest.TestCase):
         self.assertEqual(platform.done, [("install", "stk")])
         self.assertEqual(output.getvalue().count("LAN party games"), 2)
 
+    def test_menu_typo_asks_again(self):
+        platform = FakePlatform()
+        steps, output = quiet_steps()
+        with mock.patch.object(cli, "ask", side_effect=["x", "9", "2", "1"]):
+            code = cli.main([], platform=platform, games=GAMES, steps=steps)
+        self.assertEqual(code, cli.EXIT_OK)
+        self.assertEqual(platform.done, [("install", "stk")])
+        self.assertIn("ERROR: 'x' is not in the list. Choose again.", output.getvalue())
+        self.assertEqual(output.getvalue().count("LAN party games"), 3)
+
+    def test_version_mismatch_is_in_the_final_summary(self):
+        platform = FakePlatform()
+        steps, output = quiet_steps()
+        platform.install = lambda game: steps.version_result("1.4", "1.5")
+        code = cli.main(["install", "stk"], platform=platform, games=GAMES, steps=steps)
+        self.assertEqual(code, cli.EXIT_OK)
+        self.assertIn("Done, but check the warnings above: Check version", output.getvalue())
+        self.assertNotIn("Done!", output.getvalue())
+
     def test_menu_other_action_cancels(self):
         platform = FakePlatform()
         steps, output = quiet_steps()

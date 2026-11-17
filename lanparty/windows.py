@@ -9,6 +9,7 @@ from __future__ import annotations
 import fnmatch
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -28,6 +29,8 @@ UNINSTALL_KEYS = (
     ("HKEY_CURRENT_USER", r"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
 )
 UNINSTALL_TIMEOUT_SECONDS = 300
+# Written into a ZIP game's folder; holds the download URL of the installed version
+VERSION_MARKER = ".lanparty-version"
 
 
 @dataclass(frozen=True)
@@ -91,16 +94,22 @@ class Windows:
             if spec.type == "nsis":
                 steps.run(
                     f"Install {game.name}",
-                    f"The installer failed. Try running it manually: {spec.url}",
+                    f"The installer failed. Download and run it manually: {spec.url}",
                     self._run_installer, download_path,
                 )
             else:
                 install_dir = self._path(spec.install_dir)
                 steps.run(
+                    "Remove the old version",
+                    f"Close the game and delete {install_dir} manually.",
+                    remove_other_version, install_dir, spec.url,
+                )
+                steps.run(
                     f"Extract {game.name} to {install_dir}",
                     f"The ZIP may be corrupt. Delete {install_dir} and try again.",
                     extract_all, download_path, install_dir,
                 )
+                (install_dir / VERSION_MARKER).write_text(spec.url, encoding="utf-8")
 
             for asset in game.assets:
                 asset_path = temp_dir / file_name_from_url(asset.url)
@@ -230,6 +239,18 @@ class Windows:
 
     def _path(self, text: str) -> Path:
         return expand_path(text, self.variables, self.home)
+
+
+def remove_other_version(install_dir: Path, url: str) -> str | None:
+    """Deletes a ZIP game's folder when it holds a different version, so no old files stay behind.
+    The same version is kept: portable games may store settings (e.g. the player name) next to the exe."""
+    marker = install_dir / VERSION_MARKER
+    if not install_dir.exists():
+        return "not installed, nothing to do"
+    if marker.is_file() and marker.read_text(encoding="utf-8").strip() == url:
+        return "same version, kept"
+    shutil.rmtree(install_dir)
+    return None
 
 
 def firewall_rules(game: Game) -> list[tuple[str, str, str]]:
