@@ -49,7 +49,7 @@ jobs:
               {"name": "windows-11-arm", "runner": "windows-11-arm", "image": "", "options": ""},
               {"name": "macos-arm64", "runner": "macos-15", "image": "", "options": ""},
               {"name": "macos-intel", "runner": "macos-15-intel", "image": "", "options": ""},
-              {"name": "cachyos", "runner": "ubuntu-24.04", "image": "cachyos/cachyos:<tag>", "options": "--privileged"},
+              {"name": "cachyos", "runner": "ubuntu-24.04", "image": "cachyos/cachyos:latest@sha256:a8bb34493c7765031a2f8a29da5b0ca52eb29bf805f56a725fcdc093bba79b8b", "options": "--privileged"},
           ]
           with open("games.toml", "rb") as games_file:
               all_game_ids = list(tomllib.load(games_file))
