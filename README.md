@@ -1,3 +1,7 @@
+# AI disclosure
+
+This project was developed with the help of [Claude Code](https://claude.com/claude-code). All code was reviewed and tested by another instance of CLaude Code. Some Code was even reviewed by humans.
+
 # Introduction
 This project was made in preparation for a LAN Party that also provides Laptops and games to non gamers that want to try out computer games.
 
@@ -11,6 +15,22 @@ The `games.toml` file contains meta information on several games. we have tried 
 - cubeassault, Freeware Shooter game like counter strike
 - doom, the open source Doom game engine bundled with the Freedoom open source asset library
 - supertuxkart, an open source racing game like mario kart
+
+# Prerequisites
+## Linux
+
+- **x86_64 PC**: ARM isn't supported
+- **Python 3.11 or newer**, available as `python3`
+- **Flatpak**: preinstalled on CachyOS, Bazzite and SteamOS.
+- **A user account with `sudo` rights**: run `lan.py` without `sudo`, because it asks for your password itself
+- **Firewall, optional**: with ufw, rules are added automatically. With firewalld (Fedora, openSUSE, RHEL) you open the ports by hand, and only the player who hosts needs to.
+
+## Windows
+
+- **Windows 10 or 11, 64-bit**: the game downloads are x64 builds. Windows on ARM is untested.
+- **Python 3.11 or newer**: python can be installed with winget.
+- **Admin rights**: confirm the admin prompt with **your own** account, otherwise the games end up in the other account's folders
+- **Windows Defender Firewall**: rules are added automatically. With a third-party firewall, you open the ports by hand, and only the player who hosts needs to.
 
 # Installation
 install instructions can be found here (link to the md file)
@@ -26,3 +46,5 @@ Q: Can I add more games to install with the downloader?
 A: Yes. The python installer reads game information from the `games.toml` file. if you add the relevant information to the file it should install and track the new game as well.
 Q: which operating system does this installer work on?
 A: We have peronally tested the installer on linux(cachyos) and Windows 11. the installer should also work on other linux distributions. MacOS support is also planned but has not been tested yet.
+Q: This looks sus, how do I know this won't install a crypto miner or some virus.
+A: The installer as well as the linked games are open source. If you don't have the time to check everything yourself, we recommend you use a virtual machine or separate device to try out the installer.
