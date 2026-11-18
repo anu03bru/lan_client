@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       games:
-        description: "all, or a comma separated list like game,game"
+        description: "all, or a comma separated list like doom,supertuxkart"
         default: all
       platforms:
         description: "all, or a comma separated list of windows, windows-11-arm, macos-arm64, macos-intel, cachyos"
