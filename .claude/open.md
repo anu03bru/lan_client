@@ -41,9 +41,10 @@ When an item is resolved, fix the value in the named file (if needed) and delete
 
 ## Linux
 
-- [ ] **Updating the pinned commits.** `commit` in `games.toml` pins 0 A.D. and SuperTuxKart. A player's own
+- [x] **Updating the pinned commits.** `commit` in `games.toml` pins 0 A.D. and SuperTuxKart. A player's own
       `flatpak update` still moves to the newest build. Before the party, re-run `./lan.py install all` on every PC,
       or check `flatpak remote-info --log flathub <app_id>` and update the commits if the game version changed.
+        this was done
 
 ## AssaultCube server
 
