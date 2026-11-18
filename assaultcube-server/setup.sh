@@ -112,4 +112,5 @@ run_step "Move files to $INSTALL_DIR" "Check write permissions on $SCRIPT_DIR." 
 
 open_firewall_ports
 
-echo "${GREEN}Done! Edit the files in config/ and start the server with ./start.sh${RESET}"
+echo "${GREEN}Done! Set the admin password: cp config/serverpwd.cfg.example config/serverpwd.cfg, then edit it.${RESET}"
+echo "${GREEN}Edit the other files in config/ if needed and start the server with ./start.sh${RESET}"

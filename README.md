@@ -1,120 +1,51 @@
-# OpenSource Doom
-These are the client file for doom using opendoom(game files) and odamex client(engine)
+# AI disclosure
 
-### Linux (ChachyOS)
-on linux(cachyos) just install the flatpak which will add odamex as well as the odamex launcher
+This project was developed with the help of [Claude Code](https://claude.com/claude-code). All code was reviewed and tested by another instance of CLaude Code. Some Code was even reviewed by humans.
 
-after the install script runs. 3 entries will be added to start:
-Odamex = singleplayer
-Odalaunch =  multyplayer server list
-Odasrv game server ignore this
+# Introduction
+This project was made in preparation for a LAN Party that also provides Laptops and games to non gamers that want to try out computer games.
 
-you can also launch via console
-# Odamex (game)
-```bash
-flatpak run net.odamex.Odamex
-```
-Odalaunch (launcher)
-```bash
-flatpak run --command=odalaunch net.odamex.Odamex
-```
+The Repository contains a python installer and meta information on several open source games. The games information is just entries in `games.toml` and the installer uses that information to get the game releases and install them. games can also be uninstalled via the installer.
 
+# Included games
 
-freedm= maps for multyplayer, no monsters
-freedoom= singleplayer maps for coop
+The `games.toml` file contains the meta information for each game. We tried to include a range of different genres.
 
-TODO: verify windows version of the script
+- [Blobby Volley 2](https://blobbyvolley.de/): a sports game with blobs
+- [0 A.D.](https://play0ad.com/): an open source real-time strategy game, similar to Age of Empires II
+- [AssaultCube](https://assault.cubers.net/): a freeware shooter, similar to Counter-Strike
+- Doom: the open source [Odamex](https://odamex.net/) engine, bundled with the open source assets from [Freedoom](https://freedoom.github.io/)
+- [SuperTuxKart](https://supertuxkart.net/): an open source racing game, similar to Mario Kart
 
-### Windows
-On Windows just run the "install_doom.ps1" script.
+# Prerequisites
+## Linux
 
-Command:
-````bash
-$ cd doom
-$ .\install_doom.ps1
-````
+- **x86_64 PC**: ARM isn't supported
+- **Python 3.11 or newer**, available as `python3`
+- **Flatpak**: preinstalled on CachyOS, Bazzite and SteamOS.
+- **A user account with `sudo` rights**: run `lan.py` without `sudo`, because it asks for your password itself
+- **Firewall, optional**: with ufw, rules are added automatically. With firewalld (Fedora, openSUSE, RHEL) you open the ports by hand, and only the player who hosts needs to.
 
-It will create a shortcut on your desktop environment. You can start the game from there.
+## Windows
 
-# Blobby Volley
-### Linux (ChachyOS)
-on linux(cachyos)
-TODO
+- **Windows 10 or 11, 64-bit**: the game downloads are x64 builds. Windows on ARM is untested.
+- **Python 3.11 or newer**: python can be installed with winget.
+- **Admin rights**: confirm the admin prompt with **your own** account, otherwise the games end up in the other account's folders
+- **Windows Defender Firewall**: rules are added automatically. With a third-party firewall, you open the ports by hand, and only the player who hosts needs to.
 
-### Windows
-On Windows just run the "install_blobby.ps1" script.
+# Installation
+install instructions can be found here (link to the md file)
 
-Command:
-````bash
-$ cd blobby_volley
-$ .\install_blobby.ps1
-````
+# troubleshooting
+here(link to file)
 
-It will create a shortcut on your desktop environment. You can start the game from there.
+# frequently asked questions
 
-# Assault Cube
-### Linux (ChachyOS)
-on linux ...
-
-### Windows
-On Windows just run the "install_assault_cube.ps1" script.
-
-Command:
-````bash
-$ cd assaultcube
-$ .\install_assault_cube.ps1
-````
-
-It will create a shortcut on your desktop environment. You can start the game from there.
-
-# SuperTuxKart
-### Linux (CachyOS)
-```bash
-cd supertuxkart
-./install_supertuxkart.sh
-```
-Do **not** run it with `sudo`. It asks for your password when it opens the firewall ports (UDP 2757 and 2759).
-
-### Windows
-```powershell
-cd supertuxkart
-powershell -ExecutionPolicy Bypass -File install_supertuxkart.ps1
-```
-Confirm the admin prompt, so the script can open the firewall ports.
-
-### Multiplayer
-The host uses **Online → Local network → Create server**. The others join through **Online → Local network**.
-
-**Server doesn't show up in the list?** Connect directly by IP:
-1. Find the host's IP address (Linux: `ip -4 addr`, Windows: `ipconfig`).
-2. In SuperTuxKart, go to **Online → Enter server address**.
-3. Enter **`<SERVER-IP>:2759`**, e.g. `192.168.1.42:2759`.
-
-The list stays empty most often when a Linux machine with an active firewall searches for a server. The direct connection still works, as long as the host has UDP 2759 open.
-
-# Uninstall
-Removes everything the install scripts set up: the games, **their user data (settings, player names, saves)**, desktop shortcuts, Flatpak permissions and the firewall rules they opened. Running it twice is safe.
-
-### Linux
-Remove all games, then the Flatpak runtimes no app needs anymore:
-```bash
-./uninstall_all.sh
-```
-Remove a single game:
-```bash
-bash supertuxkart/install_supertuxkart.sh --uninstall
-```
-Do **not** run it with `sudo`. It asks for your password itself when it removes firewall rules.
-
-### Windows
-Remove all games (one admin prompt):
-```powershell
-powershell -ExecutionPolicy Bypass -File uninstall_all.ps1
-```
-Remove a single game:
-```powershell
-powershell -ExecutionPolicy Bypass -File supertuxkart\install_supertuxkart.ps1 -Uninstall
-```
-If the admin prompt is confirmed with a **different** Windows account, that account's user folders are cleaned instead of yours.
-
-The macOS AssaultCube install and the AssaultCube server are not covered.
+Q: These games are not as good as their paid equivalents. Why play the free version if the real paid versions are so cheap?
+A: first of not everyone has the money to pay for games. We have also found that most people don't even know that open source games are an option.
+Q: Can I add more games to install with the downloader?
+A: Yes. The python installer reads game information from the `games.toml` file. if you add the relevant information to the file it should install and track the new game as well.
+Q: which operating system does this installer work on?
+A: We have peronally tested the installer on linux(cachyos) and Windows 11. the installer should also work on other linux distributions. MacOS support is also planned but has not been tested yet.
+Q: This looks sus, how do I know this won't install a crypto miner or some virus.
+A: The installer as well as the linked games are open source. If you don't have the time to check everything yourself, we recommend you use a virtual machine or separate device to try out the installer.
