@@ -3,6 +3,10 @@
 Collected TODOs and open questions from the repository (2026-11-17). Most need a test machine.
 When an item is resolved, fix the value in the named file (if needed) and delete the item here.
 
+Many Windows/macOS items can be checked without a machine: run the `e2e install` workflow
+(`.github/workflows/e2e.yml`, started by hand). Its job summaries show what installs and uninstalls cleanly, the
+exe names and app architectures, and which folders a game creates when it starts.
+
 ## Windows (needs a Windows test machine)
 
 - [ ] **Whole Windows install is untested.** Run `py lan.py install all`, start every game, then
