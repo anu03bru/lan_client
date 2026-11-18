@@ -34,7 +34,6 @@ exe names and app architectures, and which folders a game creates when it starts
 - [ ] **User data folders** (what uninstall deletes), in `games.toml` → `[<id>.macos] data`:
   - [ ] Blobby Volley: `~/Library/Application Support/blobby` (from the current Blobby source, not checked for 1.1.1)
   - [ ] 0 A.D.: `~/Library/Application Support/0ad`, `~/Library/Caches/0ad`, `~/Library/Logs/0ad`
-  - [ ] SuperTuxKart: `~/Library/Application Support/SuperTuxKart`
   - [ ] AssaultCube: `~/Library/Application Support/assaultcube` (the app contains the text `assaultcube/v1.3`)
 - [ ] **Doom: Odalaunch finds Odamex.** Both apps are copied into `~/Applications`. Check that Odalaunch can start
       Odamex from there when joining a server, and that Odamex finds the WADs in `~/.odamex`.
@@ -54,6 +53,12 @@ exe names and app architectures, and which folders a game creates when it starts
 
 - [ ] **Old admin password in git history.** `assaultcube-server/config/serverpwd.cfg` is no longer tracked, but
       `changeme` is still in the history. Use a new password on the server, don't reuse it.
+
+## Resolved (2026-11-18)
+
+- SuperTuxKart on macOS: install and uninstall work. The data folder `~/Library/Application Support/SuperTuxKart`
+  from `games.toml` is correct and uninstall removes it together with the app. The Mac sees a server hosted on
+  Linux under Local network.
 
 ## Resolved (2026-11-17)
 
