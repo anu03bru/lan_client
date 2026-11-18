@@ -90,6 +90,35 @@ class NsisUninstallTest(unittest.TestCase):
         self.assertFalse((self.root / "appdata/supertuxkart").exists())
         self.assertEqual(windows.steps.warnings, [])
 
+    def uninstall_with_leftovers(self, folder_name: str, uninstaller_removes_entry: bool = True) -> Path:
+        folder = self.root / "programfiles" / folder_name
+        folder.mkdir(parents=True)
+        (folder / "Uninstall.exe").write_text("")
+        (folder / "CONTRIBUTING.md").write_text("")
+        entry = UninstallEntry("SuperTuxKart 1.5", f'"{folder / "Uninstall.exe"}" /x', "HKEY_LOCAL_MACHINE", "x")
+        registry = FakeRegistry([entry])
+
+        def respond(args):
+            if args[0].endswith("Uninstall.exe") and uninstaller_removes_entry:
+                registry.entries.clear()
+            return 0, "none\n"
+
+        windows, _runner, _output = make_windows(self.root, registry, respond)
+        windows.uninstall(STK)
+        return folder
+
+    def test_removes_files_the_uninstaller_left_behind(self):
+        folder = self.uninstall_with_leftovers("SuperTuxKart 1.5")
+        self.assertFalse(folder.exists())
+
+    def test_keeps_folder_whose_name_does_not_match(self):
+        folder = self.uninstall_with_leftovers("Games")
+        self.assertTrue((folder / "CONTRIBUTING.md").exists())
+
+    def test_keeps_folder_when_uninstall_did_not_finish(self):
+        folder = self.uninstall_with_leftovers("SuperTuxKart 1.5", uninstaller_removes_entry=False)
+        self.assertTrue((folder / "CONTRIBUTING.md").exists())
+
     def test_refuses_unexpected_uninstaller(self):
         entry = UninstallEntry("SuperTuxKart", "MsiExec.exe /X{123}", "HKEY_LOCAL_MACHINE", "Software\\x\\STK")
         windows, runner, output = make_windows(self.root, FakeRegistry([entry]), lambda args: (0, "none\n"))

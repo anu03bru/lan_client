@@ -20,7 +20,9 @@
 #
 # [<id>.windows]
 #   type = "nsis"   url, sha256, uninstall_name         Silent installer (/S). uninstall_name is matched against
-#                                                       the program name in "Apps & features" (* = wildcard)
+#                                                       the program name in "Apps & features" (* = wildcard).
+#                                                       Files the uninstaller leaves behind are deleted when the
+#                                                       install folder's name matches uninstall_name too
 #   type = "zip"    url, sha256, install_dir            Portable ZIP, extracted into install_dir
 #   optional: shortcuts = [{ name, target }]            Desktop shortcuts; target is an .exe inside install_dir
 #   optional: data = [...]                              User data folders deleted on uninstall

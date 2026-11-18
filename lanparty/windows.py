@@ -174,11 +174,20 @@ class Windows:
         assert spec is not None
         steps = self.steps
         if spec.type == "nsis":
+            # Read before the uninstaller removes the "Apps & features" entry
+            leftover_folders = self._nsis_install_folders(spec.uninstall_name)
             steps.attempt(
                 f"Uninstall {game.name}",
                 "Uninstall it via Settings -> Apps -> Installed apps.",
                 self._uninstall_nsis, spec.uninstall_name,
             )
+            # Some uninstallers leave files behind (AssaultCube keeps its .md files)
+            for entry, folder in leftover_folders:
+                steps.attempt(
+                    f"Remove leftover files in {folder}",
+                    f"Close the game and delete {folder} manually.",
+                    self._remove_leftover_folder, entry, folder,
+                )
         for shortcut in spec.shortcuts:
             shortcut_path = self._path(f"%DESKTOP%/{shortcut.name}.lnk")
             steps.attempt(
@@ -220,6 +229,21 @@ class Windows:
             if self.registry.exists(entry):
                 raise TimeoutError(f"{entry.display_name} is still installed after 5 minutes.")
         return None
+
+    def _nsis_install_folders(self, pattern: str) -> list[tuple[UninstallEntry, Path]]:
+        """The uninstaller's folder of each matching entry, but only when the folder name matches the pattern too,
+        so a strange uninstall string can never point this at e.g. C:\\Program Files."""
+        folders = []
+        for entry in self.registry.find(pattern):
+            folder = Path(uninstaller_path(entry.uninstall_string)).parent
+            if folder.is_absolute() and fnmatch.fnmatch(folder.name.lower(), pattern.lower()):
+                folders.append((entry, folder))
+        return folders
+
+    def _remove_leftover_folder(self, entry: UninstallEntry, folder: Path) -> str | None:
+        if self.registry.exists(entry):
+            raise RuntimeError(f"{entry.display_name} is still installed, so {folder} was kept.")
+        return remove_path(folder)
 
     def _remove_firewall_rule(self, rule_name: str) -> str | None:
         result = self._powershell(
