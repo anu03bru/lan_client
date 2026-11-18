@@ -1,0 +1,234 @@
+name: e2e install
+
+# Really installs and uninstalls the games on GitHub runners, one job per OS and game.
+# Started by hand: Actions -> e2e install -> Run workflow (or: gh workflow run e2e.yml -f games=blobby_volley).
+# Every step runs even when an earlier one failed (`if: !cancelled()`), so each job shows what works and what
+# doesn't. Failed steps stay red. The job summary has a table of all steps and the smoke start report.
+#
+# Notes:
+# - Windows runners already run as admin, so lan.py doesn't re-launch itself with UAC.
+# - CachyOS runs in a privileged Docker container (bubblewrap for Flatpak, iptables for ufw) as the user
+#   "player", because lan.py refuses to run as root on Linux.
+
+on:
+  workflow_dispatch:
+    inputs:
+      games:
+        description: "Game ids from games.toml, comma separated, or 'all'"
+        default: all
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      games: ${{ steps.games.outputs.games }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: games
+        env:
+          GAMES: ${{ inputs.games }}
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_OUTPUT"
+          import json, os, tomllib
+          ids = list(tomllib.load(open("games.toml", "rb")))
+          wanted = [g.strip() for g in os.environ["GAMES"].split(",") if g.strip()]
+          if wanted and wanted != ["all"]:
+              unknown = [g for g in wanted if g not in ids]
+              if unknown:
+                  raise SystemExit(f"Unknown game(s): {', '.join(unknown)}. Choose from: {', '.join(ids)}")
+              ids = wanted
+          print("games=" + json.dumps(ids))
+          EOF
+
+  e2e:
+    needs: setup
+    name: ${{ matrix.platform.name }} / ${{ matrix.game }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - { name: windows, runner: windows-latest, image: "", options: "" }
+          - { name: macos-arm64, runner: macos-latest, image: "", options: "" }
+          - { name: macos-intel, runner: macos-15-intel, image: "", options: "" }
+          - { name: cachyos, runner: ubuntu-latest, image: "cachyos/cachyos:latest", options: "--privileged" }
+        game: ${{ fromJSON(needs.setup.outputs.games) }}
+    runs-on: ${{ matrix.platform.runner }}
+    # An empty image runs the job directly on the runner
+    container:
+      image: ${{ matrix.platform.image }}
+      options: ${{ matrix.platform.options }}
+    timeout-minutes: 90
+    env:
+      GAME: ${{ matrix.game }}
+      PYTHONIOENCODING: utf-8
+      PYTHONUNBUFFERED: "1"
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        if: matrix.platform.image == ''
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up CachyOS (packages, user "player", ufw)
+        if: matrix.platform.image != ''
+        run: |
+          pacman -Syu --noconfirm --needed python flatpak ufw sudo xorg-server-xvfb
+          useradd --create-home player
+          echo 'player ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/player
+          cp -r "$GITHUB_WORKSPACE" /home/player/lan
+          chown -R player:player /home/player/lan
+          ufw --force enable || echo "::warning title=ufw::ufw could not be enabled in the container, so the firewall steps only test the 'ufw not active' path"
+          echo "LAN_DIR=/home/player/lan" >> "$GITHUB_ENV"
+          echo "PY=sudo -u player -H python3" >> "$GITHUB_ENV"
+
+      - name: Set up commands
+        if: matrix.platform.image == ''
+        run: |
+          echo "LAN_DIR=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+          echo "PY=python" >> "$GITHUB_ENV"
+
+      # Runs lan.py, keeps its output in logs/<name>.log and turns WARNING/ERROR lines into annotations
+      - name: Create helper
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/logs"
+          cat > "$RUNNER_TEMP/lan.sh" <<'EOF'
+          name=$1; shift
+          cd "$LAN_DIR"
+          $PY lan.py "$@" 2>&1 | tee "$GITHUB_WORKSPACE/logs/$name.log"
+          status=${PIPESTATUS[0]}
+          grep -E '^(WARNING|ERROR|Details|Hint):' "$GITHUB_WORKSPACE/logs/$name.log" | while IFS= read -r line; do
+            echo "::warning title=$name $GAME::$line"
+          done
+          exit "$status"
+          EOF
+          cat > "$RUNNER_TEMP/check.sh" <<'EOF'
+          cd "$LAN_DIR"
+          $PY .github/e2e/check_state.py "$GAME" "$1" 2>&1 | tee "$GITHUB_WORKSPACE/logs/check-$1.log"
+          exit "${PIPESTATUS[0]}"
+          EOF
+
+      - name: Is the game available on this OS?
+        id: supported
+        run: |
+          cd "$LAN_DIR"
+          echo "ok=$($PY .github/e2e/check_state.py "$GAME" supported)" >> "$GITHUB_OUTPUT"
+
+      - name: lan.py list
+        id: list
+        if: ${{ !cancelled() && steps.supported.outputs.ok == 'true' }}
+        timeout-minutes: 5
+        run: bash "$RUNNER_TEMP/lan.sh" list list
+
+      - name: Install
+        id: install
+        if: ${{ !cancelled() && steps.supported.outputs.ok == 'true' }}
+        timeout-minutes: 30
+        run: bash "$RUNNER_TEMP/lan.sh" install install "$GAME"
+
+      - name: Check installed
+        id: check_installed
+        if: ${{ !cancelled() && steps.supported.outputs.ok == 'true' }}
+        timeout-minutes: 5
+        run: bash "$RUNNER_TEMP/check.sh" present
+
+      - name: Install again (must be safe to run twice)
+        id: install_again
+        if: ${{ !cancelled() && steps.supported.outputs.ok == 'true' }}
+        timeout-minutes: 30
+        run: |
+          bash "$RUNNER_TEMP/lan.sh" install-again install "$GAME"
+          log="$GITHUB_WORKSPACE/logs/install-again.log"
+          if grep -q '==> Remove the old version' "$log" && ! grep -q 'same version, kept' "$log"; then
+            echo "::warning title=install-again $GAME::The ZIP game folder was not kept on a reinstall of the same version"
+          fi
+
+      - name: Check installed after second install
+        id: check_installed_again
+        if: ${{ !cancelled() && steps.supported.outputs.ok == 'true' }}
+        timeout-minutes: 5
+        run: bash "$RUNNER_TEMP/check.sh" present
+
+      - name: Smoke start (start the game, record new folders)
+        id: smoke
+        if: ${{ !cancelled() && steps.supported.outputs.ok == 'true' }}
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          cd "$LAN_DIR"
+          $PY .github/e2e/smoke_start.py "$GAME" | tee "$GITHUB_WORKSPACE/logs/smoke.md"
+
+      - name: Uninstall
+        id: uninstall
+        if: ${{ !cancelled() && steps.supported.outputs.ok == 'true' }}
+        timeout-minutes: 15
+        run: bash "$RUNNER_TEMP/lan.sh" uninstall uninstall "$GAME" --yes
+
+      - name: Check removed
+        id: check_removed
+        if: ${{ !cancelled() && steps.supported.outputs.ok == 'true' }}
+        timeout-minutes: 5
+        run: bash "$RUNNER_TEMP/check.sh" absent
+
+      - name: Uninstall again (must be safe to run twice)
+        id: uninstall_again
+        if: ${{ !cancelled() && steps.supported.outputs.ok == 'true' }}
+        timeout-minutes: 15
+        run: bash "$RUNNER_TEMP/lan.sh" uninstall-again uninstall "$GAME" --yes
+
+      - name: Summary
+        if: always()
+        env:
+          RESULTS: |
+            lan.py list|${{ steps.list.outcome }}
+            Install|${{ steps.install.outcome }}
+            Check installed|${{ steps.check_installed.outcome }}
+            Install again|${{ steps.install_again.outcome }}
+            Check installed after second install|${{ steps.check_installed_again.outcome }}
+            Smoke start (info only)|${{ steps.smoke.outcome }}
+            Uninstall|${{ steps.uninstall.outcome }}
+            Check removed|${{ steps.check_removed.outcome }}
+            Uninstall again|${{ steps.uninstall_again.outcome }}
+        run: |
+          {
+            echo "## ${{ matrix.platform.name }} / $GAME"
+            echo
+            if [ "${{ steps.supported.outputs.ok }}" != "true" ]; then
+              echo "Not available on this OS (no table in games.toml), skipped."
+              exit 0
+            fi
+            echo "| Step | Result |"
+            echo "|---|---|"
+            while IFS='|' read -r step outcome; do
+              [ -z "$step" ] && continue
+              case "$outcome" in
+                success) icon="✅" ;; failure) icon="❌" ;; skipped|"") icon="⏭️" ;; *) icon="⚠️" ;;
+              esac
+              echo "| $step | $icon $outcome |"
+            done <<< "$RESULTS"
+            echo
+            for file in check-present check-absent; do
+              if [ -f "logs/$file.log" ]; then
+                echo "<details><summary>$file</summary>"
+                echo
+                echo '```'
+                cat "logs/$file.log"
+                echo '```'
+                echo "</details>"
+                echo
+              fi
+            done
+            [ -f logs/smoke.md ] && cat logs/smoke.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform.name }}-${{ matrix.game }}
+          path: logs/
+          if-no-files-found: ignore
