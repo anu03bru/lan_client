@@ -1,7 +1,8 @@
 name: e2e install
 
 # Really installs and uninstalls the games on GitHub runners, one job per OS and game.
-# Started by hand: Actions -> e2e install -> Run workflow (or: gh workflow run e2e.yml -f games=blobby_volley).
+# Started by hand: Actions -> e2e install -> Run workflow
+# (or: gh workflow run e2e.yml -f games=blobby_volley -f platforms=windows,cachyos).
 # Every step runs even when an earlier one failed (`if: !cancelled()`), so each job shows what works and what
 # doesn't. Failed steps stay red. The job summary has a table of all steps and the smoke start report.
 #
@@ -19,6 +20,9 @@ on:
       games:
         description: "all, or a comma separated list like game,game"
         default: all
+      platforms:
+        description: "all, or a comma separated list of windows, windows-11-arm, macos-arm64, macos-intel, cachyos"
+        default: all
 
 permissions:
   contents: read
@@ -27,25 +31,44 @@ jobs:
   setup:
     runs-on: ubuntu-24.04
     outputs:
-      games: ${{ steps.games.outputs.games }}
+      games: ${{ steps.matrix.outputs.games }}
+      platforms: ${{ steps.matrix.outputs.platforms }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - id: games
+      # Turns the two inputs into the matrix of the e2e job. An empty image runs the job directly on the runner.
+      - id: matrix
         env:
           GAMES: ${{ inputs.games }}
+          PLATFORMS: ${{ inputs.platforms }}
         run: |
           python3 - <<'EOF' >> "$GITHUB_OUTPUT"
           import json, os, tomllib
+
+          all_platforms = [
+              {"name": "windows", "runner": "windows-2025", "image": "", "options": ""},
+              {"name": "windows-11-arm", "runner": "windows-11-arm", "image": "", "options": ""},
+              {"name": "macos-arm64", "runner": "macos-15", "image": "", "options": ""},
+              {"name": "macos-intel", "runner": "macos-15-intel", "image": "", "options": ""},
+              {"name": "cachyos", "runner": "ubuntu-24.04", "image": "cachyos/cachyos:<tag>", "options": "--privileged"},
+          ]
           with open("games.toml", "rb") as games_file:
-              game_ids = list(tomllib.load(games_file))
-          wanted = [game_id.strip() for game_id in os.environ["GAMES"].split(",") if game_id.strip()]
-          if wanted and wanted != ["all"]:
-              unknown = [game_id for game_id in wanted if game_id not in game_ids]
+              all_game_ids = list(tomllib.load(games_file))
+
+          def choose(input_name, text, choices):
+              wanted = [item.strip() for item in text.split(",") if item.strip()]
+              if not wanted or wanted == ["all"]:
+                  return choices
+              unknown = [item for item in wanted if item not in choices]
               if unknown:
                   separator = ", "
-                  raise SystemExit(f"Unknown game(s): {separator.join(unknown)}. Choose from: {separator.join(game_ids)}")
-              game_ids = wanted
+                  raise SystemExit(f"Unknown {input_name}: {separator.join(unknown)}. Choose from: {separator.join(choices)}")
+              return wanted
+
+          game_ids = choose("game(s)", os.environ["GAMES"], all_game_ids)
+          platform_names = choose("platform(s)", os.environ["PLATFORMS"], [platform["name"] for platform in all_platforms])
+          platforms = [platform for platform in all_platforms if platform["name"] in platform_names]
           print("games=" + json.dumps(game_ids))
+          print("platforms=" + json.dumps(platforms))
           EOF
 
   e2e:
@@ -54,12 +77,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform:
-          - { name: windows, runner: windows-2025, image: "", options: "" }
-          - { name: windows-11-arm, runner: windows-11-arm, image: "", options: "" }
-          - { name: macos-arm64, runner: macos-15, image: "", options: "" }
-          - { name: macos-intel, runner: macos-15-intel, image: "", options: "" }
-          - { name: cachyos, runner: ubuntu-24.04, image: "cachyos/cachyos:<tag>", options: "--privileged" }
+        # The platform list is in the setup job
+        platform: ${{ fromJSON(needs.setup.outputs.platforms) }}
         game: ${{ fromJSON(needs.setup.outputs.games) }}
     runs-on: ${{ matrix.platform.runner }}
     # An empty image runs the job directly on the runner
