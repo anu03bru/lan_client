@@ -7,37 +7,45 @@ name: e2e install
 #
 # Notes:
 # - Windows runners already run as admin, so lan.py doesn't re-launch itself with UAC.
+# - windows-2025 is Windows Server, not the desktop edition.
+# - windows-11-arm is the Windows 11 desktop, but on arm64: the x64 games run through Windows' x64 emulation.
 # - CachyOS runs in a privileged Docker container (bubblewrap for Flatpak, iptables for ufw) as the user
 #   "player", because lan.py refuses to run as root on Linux.
+# - Actions are pinned to a commit hash, the comment shows the version.
 
 on:
   workflow_dispatch:
     inputs:
       games:
-        description: "'all' or 'game,game'"
+        description: "all, or a comma separated list like game,game"
         default: all
+
+permissions:
+  contents: read
 
 jobs:
   setup:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       games: ${{ steps.games.outputs.games }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - id: games
         env:
           GAMES: ${{ inputs.games }}
         run: |
           python3 - <<'EOF' >> "$GITHUB_OUTPUT"
           import json, os, tomllib
-          ids = list(tomllib.load(open("games.toml", "rb")))
-          wanted = [g.strip() for g in os.environ["GAMES"].split(",") if g.strip()]
+          with open("games.toml", "rb") as games_file:
+              game_ids = list(tomllib.load(games_file))
+          wanted = [game_id.strip() for game_id in os.environ["GAMES"].split(",") if game_id.strip()]
           if wanted and wanted != ["all"]:
-              unknown = [g for g in wanted if g not in ids]
+              unknown = [game_id for game_id in wanted if game_id not in game_ids]
               if unknown:
-                  raise SystemExit(f"Unknown game(s): {', '.join(unknown)}. Choose from: {', '.join(ids)}")
-              ids = wanted
-          print("games=" + json.dumps(ids))
+                  separator = ", "
+                  raise SystemExit(f"Unknown game(s): {separator.join(unknown)}. Choose from: {separator.join(game_ids)}")
+              game_ids = wanted
+          print("games=" + json.dumps(game_ids))
           EOF
 
   e2e:
@@ -48,6 +56,7 @@ jobs:
       matrix:
         platform:
           - { name: windows, runner: windows-2025, image: "", options: "" }
+          - { name: windows-11-arm, runner: windows-11-arm, image: "", options: "" }
           - { name: macos-arm64, runner: macos-15, image: "", options: "" }
           - { name: macos-intel, runner: macos-15-intel, image: "", options: "" }
           - { name: cachyos, runner: ubuntu-24.04, image: "cachyos/cachyos:<tag>", options: "--privileged" }
@@ -66,11 +75,11 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Set up Python
         if: matrix.platform.image == ''
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
           python-version: "3.11"
 
@@ -79,7 +88,7 @@ jobs:
         run: |
           pacman -Syu --noconfirm --needed python flatpak ufw sudo xorg-server-xvfb
           useradd --create-home player
-          echo 'player ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/player
+          echo "player ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/player
           cp -r "$GITHUB_WORKSPACE" /home/player/lan
           chown -R player:player /home/player/lan
           ufw --force enable || echo "::warning title=ufw::ufw could not be enabled in the container, so the firewall steps only test the 'ufw not active' path"
@@ -92,7 +101,8 @@ jobs:
           echo "LAN_DIR=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
           echo "PY=python" >> "$GITHUB_ENV"
 
-      # Runs lan.py, keeps its output in logs/<name>.log and turns WARNING/ERROR lines into annotations
+      # Runs lan.py, keeps its output in logs/<name>.log and turns WARNING and ERROR lines into annotations.
+      # The Details and Hint lines stay in the log only, so one failed step gives one annotation, not three.
       - name: Create helper
         run: |
           mkdir -p "$GITHUB_WORKSPACE/logs"
@@ -101,8 +111,11 @@ jobs:
           cd "$LAN_DIR"
           $PY lan.py "$@" 2>&1 | tee "$GITHUB_WORKSPACE/logs/$name.log"
           status=${PIPESTATUS[0]}
-          grep -E '^(WARNING|ERROR|Details|Hint):' "$GITHUB_WORKSPACE/logs/$name.log" | while IFS= read -r line; do
-            echo "::warning title=$name $GAME::$line"
+          grep -E "^(WARNING|ERROR):" "$GITHUB_WORKSPACE/logs/$name.log" | while IFS= read -r line; do
+            case "$line" in
+              ERROR:*) echo "::error title=$name $GAME::$line" ;;
+              *) echo "::warning title=$name $GAME::$line" ;;
+            esac
           done
           exit "$status"
           EOF
@@ -143,7 +156,7 @@ jobs:
         run: |
           bash "$RUNNER_TEMP/lan.sh" install-again install "$GAME"
           log="$GITHUB_WORKSPACE/logs/install-again.log"
-          if grep -q '==> Remove the old version' "$log" && ! grep -q 'same version, kept' "$log"; then
+          if grep -q "==> Remove the old version" "$log" && ! grep -q "same version, kept" "$log"; then
             echo "::warning title=install-again $GAME::The ZIP game folder was not kept on a reinstall of the same version"
           fi
 
@@ -203,7 +216,7 @@ jobs:
             fi
             echo "| Step | Result |"
             echo "|---|---|"
-            while IFS='|' read -r step outcome; do
+            while IFS="|" read -r step outcome; do
               [ -z "$step" ] && continue
               case "$outcome" in
                 success) icon="✅" ;; failure) icon="❌" ;; skipped|"") icon="⏭️" ;; *) icon="⚠️" ;;
@@ -227,7 +240,7 @@ jobs:
 
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: ${{ matrix.platform.name }}-${{ matrix.game }}
           path: logs/
