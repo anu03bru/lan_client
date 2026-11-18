@@ -105,7 +105,7 @@ jobs:
       - name: Set up CachyOS (packages, user "player", ufw)
         if: matrix.platform.image != ''
         run: |
-          pacman -Syu --noconfirm --needed python flatpak ufw sudo xorg-server-xvfb
+          pacman -Syu --noconfirm --needed python flatpak ufw sudo dbus xorg-server-xvfb
           # Docker containers have no machine id, which every real install has. Without it flatpak
           # uninstall removes the app but then fails with "Cannot spawn a message bus without a machine-id"
           systemd-machine-id-setup
@@ -115,7 +115,9 @@ jobs:
           chown -R player:player /home/player/lan
           ufw --force enable || echo "::warning title=ufw::ufw could not be enabled in the container, so the firewall steps only test the 'ufw not active' path"
           echo "LAN_DIR=/home/player/lan" >> "$GITHUB_ENV"
-          echo "PY=sudo -u player -H python3" >> "$GITHUB_ENV"
+          # There is no desktop session either, so each command gets its own session D-Bus. Without it
+          # flatpak uninstall --delete-data fails with "Cannot autolaunch D-Bus without X11 $DISPLAY"
+          echo "PY=sudo -u player -H dbus-run-session -- python3" >> "$GITHUB_ENV"
 
       - name: Set up commands
         if: matrix.platform.image == ''
