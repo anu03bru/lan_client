@@ -18,9 +18,11 @@ class FakeRunner:
         self.commands = commands if commands is not None else {"flatpak", "ufw"}
         self.respond = respond or (lambda args: (0, ""))
         self.calls: list[list[str]] = []
+        self.timeouts: list[float | None] = []
 
-    def run(self, args, *, capture=False, check=True):
+    def run(self, args, *, capture=False, check=True, timeout=None):
         self.calls.append(list(args))
+        self.timeouts.append(timeout)
         returncode, stdout = self.respond(list(args))
         if check and returncode != 0:
             raise RuntimeError(f"{args} failed")

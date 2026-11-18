@@ -29,6 +29,8 @@ UNINSTALL_KEYS = (
     ("HKEY_CURRENT_USER", r"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
 )
 UNINSTALL_TIMEOUT_SECONDS = 300
+# A silent installer that runs longer than this is most likely waiting on a dialog nobody can see
+INSTALL_TIMEOUT_SECONDS = 900
 # Written into a ZIP game's folder; holds the download URL of the installed version
 VERSION_MARKER = ".lanparty-version"
 
@@ -92,9 +94,18 @@ class Windows:
                 download, spec.url, download_path, spec.sha256,
             )
             if spec.type == "nsis":
+                # Some installers (0 A.D.) ask a question when the game is already installed, even with /S,
+                # so the installed version is removed silently first. User data folders are kept.
+                if self.registry.find(spec.uninstall_name):
+                    steps.run(
+                        f"Remove the installed version of {game.name}",
+                        "Uninstall it via Settings -> Apps -> Installed apps, then run the install again.",
+                        self._uninstall_nsis, spec.uninstall_name,
+                    )
                 steps.run(
                     f"Install {game.name}",
-                    f"The installer failed. Download and run it manually: {spec.url}",
+                    "The installer failed or is waiting on a dialog. Close it and download and run it "
+                    f"manually: {spec.url}",
                     self._run_installer, download_path,
                 )
             else:
@@ -141,7 +152,7 @@ class Windows:
                 )
 
     def _run_installer(self, installer_path: Path) -> None:
-        result = self.runner.run([str(installer_path), "/S"], check=False)
+        result = self.runner.run([str(installer_path), "/S"], check=False, timeout=INSTALL_TIMEOUT_SECONDS)
         if result.returncode != 0:
             raise RuntimeError(f"Installer exited with code {result.returncode}")
 

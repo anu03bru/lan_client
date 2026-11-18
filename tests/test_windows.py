@@ -1,9 +1,12 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from lanparty.windows import (VERSION_MARKER, UninstallEntry, Windows, firewall_rules, ps_quote,
-                              remove_other_version, uninstaller_path)
+from lanparty.runner import CommandError
+from lanparty.steps import StepFailed
+from lanparty.windows import (INSTALL_TIMEOUT_SECONDS, VERSION_MARKER, UninstallEntry, Windows, firewall_rules,
+                              ps_quote, remove_other_version, uninstaller_path)
 from tests.fakes import FakeRunner, game_from_toml, quiet_steps
 
 STK = game_from_toml("""
@@ -131,6 +134,46 @@ class NsisUninstallTest(unittest.TestCase):
         windows.uninstall(STK)
         self.assertIn("OK (not installed, nothing to do)", output.getvalue())
         self.assertIn("OK (no rule, nothing to do)", output.getvalue())
+
+
+@mock.patch("lanparty.windows.download")
+class NsisInstallTest(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+
+    def test_installed_version_is_removed_before_the_installer_runs(self, _download):
+        uninstaller = self.root / "Uninstall.exe"
+        uninstaller.write_text("")
+        registry = FakeRegistry([UninstallEntry("SuperTuxKart 1.5", f'"{uninstaller}"', "HKEY_LOCAL_MACHINE", "x")])
+
+        def respond(args):
+            if args[0] == str(uninstaller):
+                registry.entries.clear()
+            return 0, ""
+
+        windows, runner, _output = make_windows(self.root, registry, respond)
+        windows.install(STK)
+        self.assertEqual(runner.calls[0], [str(uninstaller), "/S"])
+        self.assertTrue(runner.calls[1][0].endswith("stk.exe"))
+        self.assertEqual(windows.steps.warnings, [])
+
+    def test_first_install_runs_only_the_installer(self, _download):
+        windows, runner, output = make_windows(self.root)
+        windows.install(STK)
+        self.assertTrue(runner.calls[0][0].endswith("stk.exe"))
+        self.assertNotIn("Remove the installed version", output.getvalue())
+
+    def test_installer_has_a_time_limit(self, _download):
+        def respond(args):
+            if args[0].endswith("stk.exe"):
+                raise CommandError("'stk.exe' did not finish within 15 minutes and was stopped")
+            return 0, ""
+
+        windows, runner, output = make_windows(self.root, respond=respond)
+        with self.assertRaises(StepFailed):
+            windows.install(STK)
+        self.assertEqual(runner.timeouts[0], INSTALL_TIMEOUT_SECONDS)
+        self.assertIn("did not finish within 15 minutes", output.getvalue())
 
 
 class ZipTest(unittest.TestCase):
