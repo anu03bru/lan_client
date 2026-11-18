@@ -145,7 +145,9 @@ If the server doesn't show up, see [Troubleshooting](#troubleshooting-and-workar
 **Find an IP address:** Linux `ip -4 addr`, Windows `ipconfig`, macOS **System Settings → Network**.
 
 ### SuperTuxKart: no server found
-The server list often stays empty, especially on Linux with an active firewall. Connect **once directly by IP**:
+On Linux, `lan.py install` allows the host's answer to the server search through the firewall (UDP from port 2757,
+LAN addresses only). If you installed SuperTuxKart before that, run `./lan.py install supertuxkart` again.
+If the list still stays empty, connect **once directly by IP**:
 1. Ask the host for their IP address.
 2. In SuperTuxKart go to **Online → Enter server address**.
 3. Enter **`<SERVER-IP>:2759`**, e.g. `192.168.1.42:2759`.
@@ -169,6 +171,7 @@ flatpak override --user --env=DOOMWADDIR="$HOME/OdamexLAN/wads" net.odamex.Odame
 
 Ports, only needed by the player who hosts: Blobby Volley 1234/udp, 0 A.D. 20595/udp,
 SuperTuxKart 2757/udp and 2759/udp. Doom and AssaultCube use a separate server machine.
+On Linux, SuperTuxKart also needs a rule for **every** player, so the server list works: `lan.py install` adds it.
 
 ### `lan.py` problems
 | Problem | Solution |

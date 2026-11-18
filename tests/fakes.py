@@ -59,7 +59,9 @@ class FakeUfw:
             del self.rules[int(command[2]) - 1]
             return 0, "Rule deleted\n"
         if command[0] == "allow":
-            self.rules.append((command[1], command[3]))
+            # "allow 2759/udp comment X" or "allow proto udp from <net> port 2757 to any comment X"
+            comment_at = command.index("comment")
+            self.rules.append((" ".join(command[1:comment_at]), command[comment_at + 1]))
             return 0, "Rule added\n"
         return 0, ""
 

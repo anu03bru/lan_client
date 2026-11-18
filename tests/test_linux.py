@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from lanparty.linux import Linux, find_ufw_rule
+from lanparty.linux import Linux, find_ufw_rule, reply_port_rule
 from lanparty.steps import StepFailed
 from tests.fakes import FakeRunner, FakeUfw, game_from_toml, quiet_steps
 
@@ -22,6 +22,7 @@ STK = game_from_toml("""
 name = "SuperTuxKart"
 version = "1.5"
 ports = ["2759/udp", "2757/udp"]
+reply_ports = ["2757/udp"]
 [supertuxkart.linux]
 type = "flatpak"
 app_id = "net.supertuxkart.SuperTuxKart"
@@ -80,8 +81,21 @@ class LinuxInstallTest(unittest.TestCase):
         linux, runner, output = make_linux(FlatpakState(set()), ufw, self.home)
         linux.install(STK)
         self.assertIn("flatpak install --user -y --or-update flathub net.supertuxkart.SuperTuxKart", runner.joined())
-        self.assertEqual(ufw.rules, [("22/tcp", ""), ("2759/udp", "SuperTuxKart"), ("2757/udp", "SuperTuxKart")])
+        self.assertEqual(ufw.rules, [
+            ("22/tcp", ""),
+            ("2759/udp", "SuperTuxKart"),
+            ("2757/udp", "SuperTuxKart"),
+            ("proto udp from 10.0.0.0/8 port 2757 to any", "SuperTuxKart"),
+            ("proto udp from 172.16.0.0/12 port 2757 to any", "SuperTuxKart"),
+            ("proto udp from 192.168.0.0/16 port 2757 to any", "SuperTuxKart"),
+        ])
         self.assertIn("OK (version 1.5)", output.getvalue())
+
+    def test_reply_port_rule_allows_source_port_from_network(self):
+        self.assertEqual(
+            " ".join(reply_port_rule("2757/udp", "192.168.0.0/16", "SuperTuxKart")),
+            "sudo ufw allow proto udp from 192.168.0.0/16 port 2757 to any comment SuperTuxKart",
+        )
 
     def test_pinned_commit_is_installed_after_flathub_install(self):
         linux, runner, _output = make_linux(FlatpakState(set()), FakeUfw([]), self.home)
@@ -129,6 +143,7 @@ class LinuxUninstallTest(unittest.TestCase):
             ("2759/udp", "SuperTuxKart server"),  # written by the first version of the install script
             ("20595/udp", ""),  # added by hand, no comment
             ("2757/udp", "SuperTuxKart"),
+            ("proto udp from 192.168.0.0/16 port 2757 to any", "SuperTuxKart"),
         ])
         flatpak = FlatpakState({"net.supertuxkart.SuperTuxKart"})
         linux, runner, output = make_linux(flatpak, ufw, self.home)
@@ -172,12 +187,14 @@ class UfwParsingTest(unittest.TestCase):
 [ 2] 20595/udp                  ALLOW IN    Anywhere                   # 0 A.D.
 [ 4] 28763/udp                  ALLOW IN    Anywhere                   # AssaultCube server
 [10] 2759/udp (v6)              ALLOW IN    Anywhere (v6)              # SuperTuxKart
+[11] Anywhere/udp               ALLOW IN    192.168.0.0/16 2757/udp    # Blobby Volley 2
 """
 
     def test_finds_rule_by_comment(self):
         self.assertEqual(find_ufw_rule(self.STATUS, ("0 A.D.",)), 2)
         self.assertEqual(find_ufw_rule(self.STATUS, ("SuperTuxKart",)), 10)
-        self.assertIsNone(find_ufw_rule(self.STATUS, ("Blobby Volley 2",)))
+        self.assertEqual(find_ufw_rule(self.STATUS, ("Blobby Volley 2",)), 11)
+        self.assertIsNone(find_ufw_rule(self.STATUS, ("Odamex",)))
 
     def test_comment_must_match_exactly(self):
         self.assertIsNone(find_ufw_rule(self.STATUS, ("AssaultCube",)))

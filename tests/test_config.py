@@ -35,6 +35,7 @@ class GamesFileTest(unittest.TestCase):
         games = {game.id: game for game in load_games(GAMES_FILE)}
         self.assertEqual(list(games), ["doom", "blobby_volley", "0ad", "supertuxkart", "assaultcube"])
         self.assertEqual(games["supertuxkart"].ports, ("2759/udp", "2757/udp"))
+        self.assertEqual(games["supertuxkart"].reply_ports, ("2757/udp",))
         self.assertEqual(games["doom"].linux.type, "flatpak-bundle")
         self.assertEqual(len(games["doom"].assets), 2)
         self.assertEqual(games["doom"].windows.shortcuts[0].target, "odalaunch.exe")
@@ -70,6 +71,11 @@ class ValidationTest(unittest.TestCase):
 
     def test_bad_port(self):
         self.assert_error(VALID_GAME.replace("2759/udp", "2759"), "port '2759' must look like")
+
+    def test_reply_ports(self):
+        self.assertEqual(parse(VALID_GAME.replace("ports =", 'reply_ports = ["2757/udp"]\nports ='))[0].reply_ports,
+                         ("2757/udp",))
+        self.assert_error(VALID_GAME.replace("ports =", 'reply_ports = ["2757"]\nports ='), "port '2757' must look like")
 
     def test_bad_checksum(self):
         text = VALID_GAME + '[stk.windows]\ntype = "nsis"\nurl = "x"\nsha256 = "abc"\nuninstall_name = "S*"\n'

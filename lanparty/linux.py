@@ -18,6 +18,8 @@ UFW_RULE_NUMBER = re.compile(r"^\[\s*(\d+)\]")
 # ufw comments written by earlier install scripts, also removed on uninstall.
 # Never add "AssaultCube server": those rules belong to the dedicated server (assaultcube-server/setup.sh).
 OLD_UFW_COMMENTS = {"SuperTuxKart": ("SuperTuxKart server",)}
+# reply_ports are only allowed from these, so the rules don't open anything to the internet
+PRIVATE_NETWORKS = ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
 
 
 class Linux:
@@ -114,6 +116,14 @@ class Linux:
                 f"Run manually: sudo ufw allow <port> comment '{game.name}' for each of: {' '.join(game.ports)}",
                 self._open_ports, game,
             )
+        if game.reply_ports:
+            example = reply_port_rule(game.reply_ports[0], "192.168.0.0/16", game.name)
+            steps.attempt(
+                f"Allow LAN server list replies (ufw): {' '.join(game.reply_ports)}",
+                f"Run manually: {' '.join(example[:-1])} '{game.name}' "
+                f"(also with 10.0.0.0/8 and 172.16.0.0/12 instead of 192.168.0.0/16)",
+                self._allow_reply_ports, game,
+            )
 
     def _pin_commit(self, game: Game, spec: LinuxSpec) -> None:
         # Flathub always installs its newest build. Going to the pinned commit keeps every Linux PC on the same build
@@ -156,6 +166,15 @@ class Linux:
             self.runner.run(["sudo", "ufw", "allow", port, "comment", game.name])
         return None
 
+    def _allow_reply_ports(self, game: Game) -> str | None:
+        reason = self._ufw_unavailable()
+        if reason:
+            return reason
+        for port in game.reply_ports:
+            for network in PRIVATE_NETWORKS:
+                self.runner.run(reply_port_rule(port, network, game.name))
+        return None
+
     # ---------- uninstall ----------
 
     def uninstall(self, game: Game) -> None:
@@ -181,7 +200,7 @@ class Linux:
             )
         for folder in self._unique_paths([*spec.data, *(asset.linux_dest for asset in game.assets)]):
             steps.attempt(f"Remove {folder}", f"Delete it manually: rm -rf {folder}", remove_path, folder)
-        if game.ports:
+        if game.ports or game.reply_ports:
             steps.attempt(
                 "Close firewall ports (ufw)",
                 "List rules with: sudo ufw status numbered, then delete with: sudo ufw delete <number>",
@@ -278,6 +297,13 @@ class Linux:
 
     def _unique_paths(self, texts: list[str]) -> list[Path]:
         return list(dict.fromkeys(self._path(text) for text in texts))
+
+
+def reply_port_rule(port: str, network: str, comment: str) -> list[str]:
+    """ufw command allowing packets *from* `port` (e.g. "2757/udp") of `network` to any local port."""
+    number, protocol = port.split("/")
+    return ["sudo", "ufw", "allow", "proto", protocol, "from", network, "port", number, "to", "any",
+            "comment", comment]
 
 
 def find_ufw_rule(status_output: str, comments: tuple[str, ...]) -> int | None:

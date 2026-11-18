@@ -49,6 +49,12 @@ exe names and app architectures, and which folders a game creates when it starts
       or check `flatpak remote-info --log flathub <app_id>` and update the commits if the game version changed.
         this was done
 
+- [ ] **SuperTuxKart `reply_ports` with the real ufw.** Tested by hand with `from any port 2757`; `lan.py` now adds
+      the rule for `10.0.0.0/8`, `172.16.0.0/12` and `192.168.0.0/16` only (IPv4). Check on two CachyOS PCs that the
+      server list works after `./lan.py install supertuxkart`, and that `./lan.py uninstall supertuxkart` removes
+      all three rules (`sudo ufw status numbered`). If the list only works with `from any`, STK may search over IPv6
+      too: then add `fe80::/10` and `fc00::/7` to `PRIVATE_NETWORKS` in `lanparty/linux.py`.
+
 ## AssaultCube server
 
 - [ ] **Old admin password in git history.** `assaultcube-server/config/serverpwd.cfg` is no longer tracked, but

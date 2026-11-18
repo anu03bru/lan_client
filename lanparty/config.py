@@ -69,6 +69,7 @@ class Game:
     name: str
     version: str | None = None
     ports: tuple[str, ...] = ()
+    reply_ports: tuple[str, ...] = ()
     hint: str | None = None
     linux: LinuxSpec | None = None
     windows: WindowsSpec | None = None
@@ -118,11 +119,9 @@ def parse_games(tables: dict[str, Any]) -> list[Game]:
 
 def _parse_game(game_id: str, table: Any) -> Game:
     where = f"[{game_id}]"
-    _check_keys(where, table, {"name"}, {"version", "ports", "hint", *PLATFORMS, "assets"})
-    ports = _strings(where, table, "ports")
-    for port in ports:
-        if not PORT_PATTERN.match(port):
-            raise ConfigError(f"{where}: port {port!r} must look like 2759/udp")
+    _check_keys(where, table, {"name"}, {"version", "ports", "reply_ports", "hint", *PLATFORMS, "assets"})
+    ports = _ports(where, table, "ports")
+    reply_ports = _ports(where, table, "reply_ports")
     if not any(platform in table for platform in PLATFORMS):
         raise ConfigError(f"{where}: needs a [{game_id}.linux], [{game_id}.windows] or [{game_id}.macos] table")
 
@@ -138,6 +137,7 @@ def _parse_game(game_id: str, table: Any) -> Game:
         name=_string(where, table, "name"),
         version=_string(where, table, "version"),
         ports=ports,
+        reply_ports=reply_ports,
         hint=_string(where, table, "hint"),
         linux=_parse_linux(f"[{game_id}.linux]", table["linux"]) if "linux" in table else None,
         windows=_parse_windows(f"[{game_id}.windows]", table["windows"]) if "windows" in table else None,
@@ -257,6 +257,14 @@ def _strings(where: str, table: dict, key: str) -> tuple[str, ...]:
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise ConfigError(f"{where}: {key} must be a list of strings")
     return tuple(value)
+
+
+def _ports(where: str, table: dict, key: str) -> tuple[str, ...]:
+    ports = _strings(where, table, key)
+    for port in ports:
+        if not PORT_PATTERN.match(port):
+            raise ConfigError(f"{where}: port {port!r} must look like 2759/udp")
+    return ports
 
 
 def _commit(where: str, table: dict) -> str | None:

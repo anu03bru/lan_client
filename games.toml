@@ -7,6 +7,9 @@
 #             so don't rename a game while it is installed somewhere: uninstall would not find its rules.
 #   version   Optional. Warns when the installed Flatpak has a different version (all players need the same one).
 #   ports     Optional. Opened on install and closed on uninstall. Only needed by the player who hosts.
+#   reply_ports  Optional, Linux only. For games that find LAN servers by broadcast: the host answers from this
+#             port, and ufw drops that answer because it can't match it to the broadcast. Install allows incoming
+#             packets from this source port, from private LAN addresses only. Needed by every player who searches.
 #   hint      Optional. Printed after the install.
 #
 # [<id>.linux]
@@ -151,6 +154,8 @@ name = "SuperTuxKart"
 version = "1.5"
 # 2759 = game server, 2757 = LAN server discovery (needed when hosting via "Create server")
 ports = ["2759/udp", "2757/udp"]
+# The host answers the LAN search from 2757. Without this, the server list stays empty on Linux with ufw active
+reply_ports = ["2757/udp"]
 hint = "Multiplayer: Online -> Local network. The host uses 'Create server'."
 
 [supertuxkart.linux]
