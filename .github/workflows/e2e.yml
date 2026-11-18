@@ -106,6 +106,9 @@ jobs:
         if: matrix.platform.image != ''
         run: |
           pacman -Syu --noconfirm --needed python flatpak ufw sudo xorg-server-xvfb
+          # Docker containers have no machine id, which every real install has. Without it flatpak
+          # uninstall removes the app but then fails with "Cannot spawn a message bus without a machine-id"
+          systemd-machine-id-setup
           useradd --create-home player
           echo "player ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/player
           cp -r "$GITHUB_WORKSPACE" /home/player/lan
@@ -159,7 +162,7 @@ jobs:
       - name: Install
         id: install
         if: ${{ !cancelled() && steps.supported.outputs.ok == 'true' }}
-        timeout-minutes: 30
+        timeout-minutes: 20
         run: bash "$RUNNER_TEMP/lan.sh" install install "$GAME"
 
       - name: Check installed
@@ -171,7 +174,7 @@ jobs:
       - name: Install again (must be safe to run twice)
         id: install_again
         if: ${{ !cancelled() && steps.supported.outputs.ok == 'true' }}
-        timeout-minutes: 30
+        timeout-minutes: 20
         run: |
           bash "$RUNNER_TEMP/lan.sh" install-again install "$GAME"
           log="$GITHUB_WORKSPACE/logs/install-again.log"
