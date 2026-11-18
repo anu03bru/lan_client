@@ -7,14 +7,15 @@ This project was made in preparation for a LAN Party that also provides Laptops 
 
 The Repository contains a python installer and meta information on several open source games. The games information is just entries in `games.toml` and the installer uses that information to get the game releases and install them. games can also be uninstalled via the installer.
 
-# Included Games
-The `games.toml` file contains meta information on several games. we have tried to include a range of different genres.
+# Included games
 
-- Blobby volley, a sports game with slimes
-- 0ad, open source RTS like age of empires 2
-- cubeassault, Freeware Shooter game like counter strike
-- doom, the open source Doom game engine bundled with the Freedoom open source asset library
-- supertuxkart, an open source racing game like mario kart
+The `games.toml` file contains the meta information for each game. We tried to include a range of different genres.
+
+- [Blobby Volley 2](https://blobbyvolley.de/): a sports game with blobs
+- [0 A.D.](https://play0ad.com/): an open source real-time strategy game, similar to Age of Empires II
+- [AssaultCube](https://assault.cubers.net/): a freeware shooter, similar to Counter-Strike
+- Doom: the open source [Odamex](https://odamex.net/) engine, bundled with the open source assets from [Freedoom](https://freedoom.github.io/)
+- [SuperTuxKart](https://supertuxkart.net/): an open source racing game, similar to Mario Kart
 
 # Prerequisites
 ## Linux
