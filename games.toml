@@ -44,6 +44,7 @@
 #
 # Paths: ~ is your home folder. On Windows %APPDATA%, %LOCALAPPDATA%, %USERPROFILE%, %DOCUMENTS% and %DESKTOP%
 # can be used. Use / as separator on all systems.
+# games-lan.toml (LAN party only) also has a [share] table and %SHARE% in its URLs, see docs/lan-share.md.
 
 [doom]
 name = "Doom (Odamex + Freedoom)"

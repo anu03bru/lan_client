@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import sys
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -95,6 +96,8 @@ MACOS_TYPES = {
     "zip": ({"type", "url", "sha256", "apps"}, {"arm64", "data"}),
 }
 PLATFORMS = ("linux", "windows", "macos")
+# Stands for the LAN share folder in games-lan.toml, set per OS by its [share] table
+SHARE_PLACEHOLDER = "%SHARE%"
 
 
 def load_games(path: Path) -> list[Game]:
@@ -105,7 +108,44 @@ def load_games(path: Path) -> list[Game]:
         raise ConfigError(f"{path} not found") from None
     except tomllib.TOMLDecodeError as error:
         raise ConfigError(f"{path} is not valid TOML: {error}") from None
-    return parse_games(tables)
+    return parse_games(fill_share(tables))
+
+
+def fill_share(tables: dict[str, Any]) -> dict[str, Any]:
+    """Takes the [share] table out and replaces %SHARE% with the share folder for this OS (games-lan.toml)."""
+    tables = dict(tables)
+    share = tables.pop("share", None)
+    uses_share = SHARE_PLACEHOLDER in repr(tables)
+    if share is None:
+        if uses_share:
+            raise ConfigError(f"{SHARE_PLACEHOLDER} is used, but there is no [share] table with the share folder")
+        return tables
+    _check_keys("[share]", share, set(PLATFORMS), set())
+    for platform in PLATFORMS:
+        if not isinstance(share[platform], str) or not share[platform]:
+            raise ConfigError(f"[share]: {platform} must be a folder path")
+    folder = share[current_platform()]
+    if folder == "~" or folder.startswith("~/"):
+        folder = Path.home().as_posix() + folder[1:]
+    return _replace_share(tables, folder.rstrip("/"))
+
+
+def current_platform() -> str:
+    if sys.platform == "win32":
+        return "windows"
+    if sys.platform == "darwin":
+        return "macos"
+    return "linux"
+
+
+def _replace_share(value: Any, folder: str) -> Any:
+    if isinstance(value, str):
+        return value.replace(SHARE_PLACEHOLDER, folder)
+    if isinstance(value, dict):
+        return {key: _replace_share(item, folder) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_replace_share(item, folder) for item in value]
+    return value
 
 
 def parse_games(tables: dict[str, Any]) -> list[Game]:

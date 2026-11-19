@@ -36,6 +36,9 @@ The `games.toml` file contains the meta information for each game. We tried to i
 # Installation
 install instructions can be found here (link to the md file)
 
+# At the LAN party
+At the party the games are downloaded from the LAN fileserver instead of the internet. Open the fileserver share first, then run `lan.py --games games-lan.toml install all`. Details: [docs/lan-share.md](docs/lan-share.md).
+
 # troubleshooting
 here(link to file)
 

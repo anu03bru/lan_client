@@ -1,9 +1,11 @@
+import hashlib
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest import mock
 
-from lanparty.download import expand_path, extract_matching, file_name_from_url, remove_path
+from lanparty.download import download, download_hint, expand_path, extract_matching, file_name_from_url, remove_path
 
 
 class DownloadHelperTest(unittest.TestCase):
@@ -32,6 +34,22 @@ class DownloadHelperTest(unittest.TestCase):
         self.assertEqual([path.name for path in dest.iterdir()], ["freedm.wad"])
         with self.assertRaises(ValueError):
             extract_matching(zip_path, "*.pk3", dest)
+
+    def test_download_copies_from_a_local_path(self):
+        source = self.root / "share" / "game.zip"
+        source.parent.mkdir()
+        source.write_bytes(b"game")
+        target = self.root / "game.zip"
+        with mock.patch("sys.stderr"):
+            download(str(source), target, hashlib.sha256(b"game").hexdigest())
+            self.assertEqual(target.read_bytes(), b"game")
+            with self.assertRaises(ValueError):
+                download(str(source), target, "0" * 64)
+        self.assertFalse(target.exists())
+
+    def test_download_hint(self):
+        self.assertIn("internet connection", download_hint("https://x/a.zip"))
+        self.assertIn("LAN share", download_hint("//srv/lan/a.zip"))
 
     def test_remove_path(self):
         folder = self.root / "data"

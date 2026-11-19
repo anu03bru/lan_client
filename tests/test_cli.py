@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from lanparty import cli
@@ -76,7 +77,25 @@ class CliTest(unittest.TestCase):
         with mock.patch("lanparty.windows.relaunch_as_admin", return_value=0) as relaunch:
             code, _output = run(["uninstall", "stk"], FakePlatform(admin_needed=True), answer="y")
         self.assertEqual(code, 0)
-        relaunch.assert_called_once_with(cli.LAN_SCRIPT, ["--elevated", "uninstall", "stk", "--yes"])
+        relaunch.assert_called_once_with(
+            cli.LAN_SCRIPT, ["--elevated", "--games", str(cli.GAMES_FILE), "uninstall", "stk", "--yes"]
+        )
+
+    def test_games_option_loads_that_file(self):
+        steps, _output = quiet_steps()
+        with mock.patch.object(cli, "load_games", return_value=GAMES) as load:
+            code = cli.main(["--games", "games-lan.toml", "list"], platform=FakePlatform(), steps=steps)
+        self.assertEqual(code, cli.EXIT_OK)
+        load.assert_called_once_with(Path("games-lan.toml").resolve())
+
+    def test_menu_admin_relaunch_keeps_the_games_file(self):
+        steps, _output = quiet_steps()
+        lan_file = Path("games-lan.toml").resolve()
+        with mock.patch.object(cli, "load_games", return_value=GAMES), \
+                mock.patch.object(cli, "ask", side_effect=["2", "1"]), \
+                mock.patch("lanparty.windows.relaunch_as_admin", return_value=0) as relaunch:
+            cli.main(["--games", str(lan_file)], platform=FakePlatform(admin_needed=True), steps=steps)
+        relaunch.assert_called_once_with(cli.LAN_SCRIPT, ["--elevated", "--games", str(lan_file), "install", "stk"])
 
     def test_menu_runs_the_chosen_action(self):
         platform = FakePlatform()

@@ -13,7 +13,7 @@ import tempfile
 from pathlib import Path
 
 from .config import Game, MacosSpec
-from .download import download, expand_path, extract_matching, file_name_from_url, remove_path
+from .download import download, download_hint, expand_path, extract_matching, file_name_from_url, remove_path
 from .runner import Runner
 from .steps import Steps
 
@@ -64,7 +64,7 @@ class Macos:
             download_path = temp_dir / file_name_from_url(url)
             steps.run(
                 f"Download {game.name}",
-                f"Check the internet connection and the URL: {url}. {CERTIFICATE_HINT}",
+                f"{download_hint(url)}. {CERTIFICATE_HINT}",
                 download, url, download_path, sha256,
             )
 
@@ -96,7 +96,7 @@ class Macos:
                 dest = self._path(asset.macos_dest)
                 steps.run(
                     f"Download {file_name_from_url(asset.url)}",
-                    f"Check the internet connection and the URL: {asset.url}",
+                    download_hint(asset.url),
                     download, asset.url, asset_path, asset.sha256,
                 )
                 steps.run(

@@ -9,15 +9,8 @@ exe names and app architectures, and which folders a game creates when it starts
 
 ## Windows (needs a Windows test machine)
 
-- [ ] **Whole Windows install is untested.** Run `py lan.py install all`, start every game, then
-      `py lan.py uninstall all` and check nothing is left behind.
 - [ ] **Doom: does Odamex write to `Documents/My Games/Odamex`?** `games.toml` → `[doom.windows] data`.
       If it writes somewhere else (or into its install folder), update `data`.
-- [ ] **Blobby Volley: exe name.** `games.toml` → `[blobby_volley.windows] shortcuts` assumes `blobby.exe`.
-      If wrong, creating the desktop shortcut fails with "blobby.exe not found in ...".
-- [ ] **Blobby Volley: user data folder.** `games.toml` → `[blobby_volley.windows] data` lists `%APPDATA%/blobby` and
-      `%APPDATA%/.blobby` as guesses. The Blobby source uses `PHYSFS_getPrefDir("org.dk", "blobby")`, which on Windows
-      is probably `%APPDATA%/org.dk/blobby`.
 - [ ] **ZIP games: settings in the install folder?** A reinstall of a *new* version deletes the install folder
       (`remove_other_version` in `lanparty/windows.py`). Check whether Odamex or Blobby Volley keep the player name
       there; if so, those files need to be carried over.
@@ -26,9 +19,8 @@ exe names and app architectures, and which folders a game creates when it starts
 
 ## macOS (needs a Mac, ideally one Apple Silicon and one Intel)
 
-- [ ] **Whole macOS install is untested.** Run `./lan.py install all`, start every game, then
-      `./lan.py uninstall all`. Tested only with fakes in `tests/test_macos.py`.
-      The README says "not tested on a Mac yet"; remove that line once it works.
+- [ ] **Whole macOS install.** Only SuperTuxKart is tested so far. The other games get tested during the big
+      network test (Friday or Monday): `./lan.py install all`, start every game, then `./lan.py uninstall all`.
 - [ ] **Disk images with a license agreement.** `hdiutil attach` asks on the terminal before opening such an image.
       Check whether any of the five images does this, and whether the prompt is usable.
 - [ ] **User data folders** (what uninstall deletes), in `games.toml` → `[<id>.macos] data`:
@@ -44,21 +36,39 @@ exe names and app architectures, and which folders a game creates when it starts
 
 ## Linux
 
-- [x] **Updating the pinned commits.** `commit` in `games.toml` pins 0 A.D. and SuperTuxKart. A player's own
-      `flatpak update` still moves to the newest build. Before the party, re-run `./lan.py install all` on every PC,
-      or check `flatpak remote-info --log flathub <app_id>` and update the commits if the game version changed.
-        this was done
+- [ ] **Updating the pinned commits.** Done for now; repeat shortly before the party. `commit` in `games.toml` pins
+      0 A.D. and SuperTuxKart. A player's own `flatpak update` still moves to the newest build. Before the party,
+      re-run `./lan.py install all` on every PC, or check `flatpak remote-info --log flathub <app_id>` and update the commits if the game version changed.
 
-- [ ] **SuperTuxKart `reply_ports` with the real ufw.** Tested by hand with `from any port 2757`; `lan.py` now adds
-      the rule for `10.0.0.0/8`, `172.16.0.0/12` and `192.168.0.0/16` only (IPv4). Check on two CachyOS PCs that the
-      server list works after `./lan.py install supertuxkart`, and that `./lan.py uninstall supertuxkart` removes
-      all three rules (`sudo ufw status numbered`). If the list only works with `from any`, STK may search over IPv6
-      too: then add `fe80::/10` and `fc00::/7` to `PRIVATE_NETWORKS` in `lanparty/linux.py`.
+## LAN share (games-lan.toml)
 
-## AssaultCube server
+- [ ] **Share address.** Fill in the `[share]` table in `games-lan.toml` once the fileserver exists (still
+      `FILESERVER/lanparty`), then run `scripts/fill_share.py` and copy the result to the share.
+- [ ] **Windows: share from the admin window.** The install runs elevated. Check that the elevated process can read
+      `\\FILESERVER\lanparty` (UNC works there, mapped drive letters don't). If the share needs a login, log in
+      in the normal window first.
+- [ ] **Linux: gvfs path.** `[share] linux` assumes user id 1000 and the lowercase server name that gvfs uses.
+      Check with `ls /run/user/$(id -u)/gvfs/` on a party PC.
+- [ ] **Windows ZIP games after a switch.** `.lanparty-version` stores the download URL, so a PC that installed
+      Odamex or Blobby from the internet treats a reinstall from the share as a new version and recreates the
+      install folder once.
+- [ ] **Flathub games on the share (Linux).** Blobby Volley, 0 A.D., SuperTuxKart and AssaultCube still come from
+      Flathub. Bundle them (with their runtimes) for the share, e.g. with `flatpak create-usb` at the pinned commits,
+      and teach `lan.py` to install from there. Then update the Linux note in `docs/lan-share.md`.
+- [ ] **Thursday 2026-11-26: make games-lan.toml the default.** Set `GAMES_FILE` in `lanparty/cli.py` to
+      `games-lan.toml`, so players need no `--games`. Update the commands in `README.md` and `docs/lan-share.md`
+      (`--games games.toml` then means "from the internet"). Revert this after the party.
+- [ ] **After the party:** delete `games-lan.toml`, `scripts/fill_share.py`, `docs/lan-share.md`, the README chapter
+      "At the LAN party", `LanGamesFileTest` in `tests/test_config.py`, the `games.toml` header line about it and the
+      CLAUDE.md lines. Keep `--games`, `[share]` / `fill_share` and the local-path download (generic, tested).
 
-- [ ] **Old admin password in git history.** `assaultcube-server/config/serverpwd.cfg` is no longer tracked, but
-      `changeme` is still in the history. Use a new password on the server, don't reuse it.
+## Resolved (2026-11-19)
+
+- Whole Windows install was tested by hand.
+- Blobby Volley on Windows: exe name `blobby.exe` is correct (the desktop shortcut gets created).
+- Blobby Volley on Windows: uninstall was tested and worked.
+- SuperTuxKart `reply_ports`: the ufw rule for the private IPv4 ranges fixes the LAN server list. IPv6 not needed.
+- AssaultCube server admin password: not a concern, the server is temporary and runs in a closed network.
 
 ## Resolved (2026-11-18)
 

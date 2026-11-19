@@ -9,7 +9,9 @@ import tempfile
 from pathlib import Path
 
 from .config import Game, LinuxSpec
-from .download import download, expand_path, expand_text, extract_matching, file_name_from_url, remove_path
+from .download import (
+    download, download_hint, expand_path, expand_text, extract_matching, file_name_from_url, remove_path,
+)
 from .runner import Runner
 from .steps import Steps
 
@@ -78,7 +80,7 @@ class Linux:
                 bundle_path = temp_dir / file_name_from_url(spec.url)
                 steps.run(
                     f"Download {game.name}",
-                    f"Check the internet connection and the URL: {spec.url}",
+                    download_hint(spec.url),
                     download, spec.url, bundle_path, spec.sha256,
                 )
                 steps.run(
@@ -98,7 +100,7 @@ class Linux:
                 dest = self._path(asset.linux_dest)
                 steps.run(
                     f"Download {file_name_from_url(asset.url)}",
-                    f"Check the internet connection and the URL: {asset.url}",
+                    download_hint(asset.url),
                     download, asset.url, asset_path, asset.sha256,
                 )
                 steps.run(

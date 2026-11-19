@@ -42,6 +42,8 @@ def build_parser() -> argparse.ArgumentParser:
         "pick a game number (or a = all), then 1 = install, 2 = uninstall or 3 = back to the game list.",
     )
     parser.add_argument("--elevated", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--games", metavar="file", type=Path, default=GAMES_FILE,
+                        help="games file to use (default: games.toml; at the LAN party: games-lan.toml)")
     commands = parser.add_subparsers(dest="command", metavar="command")
     commands.add_parser("list", help="show all games and whether they are installed")
     install = commands.add_parser("install", help="install a game, or all games")
@@ -54,9 +56,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str], platform=None, games: list[Game] | None = None, steps: Steps | None = None) -> int:
     args = build_parser().parse_args(argv)
+    args.games = args.games.resolve()
     steps = steps or Steps()
     try:
-        games = games if games is not None else load_games(GAMES_FILE)
+        games = games if games is not None else load_games(args.games)
         platform = platform or make_platform(Runner(), steps)
         platform.check_ready()
     except (ConfigError, OSError) as error:
@@ -65,7 +68,7 @@ def main(argv: list[str], platform=None, games: list[Game] | None = None, steps:
 
     try:
         if args.command is None:
-            return menu(platform, games, steps)
+            return menu(platform, games, steps, args.games)
         if args.command == "list":
             return show_list(platform, games, steps)
         return run_command(args, platform, games, steps)
@@ -103,7 +106,10 @@ def run_command(args: argparse.Namespace, platform, games: list[Game], steps: St
 
         steps.info("Restarting with admin rights...")
         # Confirmation already happened here, so the admin window doesn't ask again
-        relaunch_arguments = ["--elevated", args.command, args.game, *(["--yes"] if args.command == "uninstall" else [])]
+        relaunch_arguments = [
+            "--elevated", "--games", str(args.games),
+            args.command, args.game, *(["--yes"] if args.command == "uninstall" else []),
+        ]
         return relaunch_as_admin(LAN_SCRIPT, relaunch_arguments)
 
     failed = []
@@ -154,7 +160,7 @@ def select_games(game_id: str, platform, games: list[Game], steps: Steps) -> lis
     return None
 
 
-def menu(platform, games: list[Game], steps: Steps) -> int:
+def menu(platform, games: list[Game], steps: Steps, games_file: Path = GAMES_FILE) -> int:
     available = [game for game in games if platform.supports(game)]
     while True:
         steps.info(f"LAN party games ({platform.name})")
@@ -189,7 +195,7 @@ def menu(platform, games: list[Game], steps: Steps) -> int:
         if action not in commands:
             steps.info("Cancelled.")
             return EXIT_OK
-        return main([commands[action], game_id], platform=platform, games=games, steps=steps)
+        return main(["--games", str(games_file), commands[action], game_id], platform=platform, games=games, steps=steps)
 
 
 def ask(question: str) -> str:
