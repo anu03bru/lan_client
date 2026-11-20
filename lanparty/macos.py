@@ -107,7 +107,11 @@ class Macos:
 
         if game.version:
             steps.info("==> Check version")
-            steps.version_result(self._installed_version(spec.apps[0]), game.version)
+            installed_version = self._installed_version(spec.apps[0])
+            if installed_version is None:
+                steps.ok("the app doesn't record its version, the download is pinned by sha256")
+            else:
+                steps.version_result(installed_version, game.version)
         if game.ports:
             steps.info("Hosting: if macOS asks whether the game may accept incoming network connections, click Allow.")
 
@@ -146,13 +150,17 @@ class Macos:
         # ditto keeps symlinks, permissions and the code signature of the app bundle
         self.runner.run(["ditto", str(source), str(target)])
 
-    def _installed_version(self, app: str) -> str:
+    def _installed_version(self, app: str) -> str | None:
+        """None when the app has no usable version (Blobby Volley has none, AssaultCube only "1.3.x.x")."""
         try:
             with open(self.applications / app / "Contents" / "Info.plist", "rb") as plist_file:
                 info = plistlib.load(plist_file)
         except (OSError, plistlib.InvalidFileException):
             return ""
-        return str(info.get("CFBundleShortVersionString", ""))
+        version = str(info.get("CFBundleShortVersionString") or info.get("CFBundleVersion") or "")
+        if not version or "x" in version.lower():
+            return None
+        return version
 
     # ---------- uninstall ----------
 
