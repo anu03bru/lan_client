@@ -17,6 +17,7 @@ python3 -m unittest                                   # all tests (any OS; CI ru
 python3 -m unittest tests.test_macos                  # one module
 python3 -m unittest tests.test_macos.MacosTest.test_arm64_build_is_used_on_apple_silicon   # one test
 ./lan.py list                                         # quick check that games.toml still loads
+./lan.py --games games-lan.toml list                  # same for the LAN party copy (files from the LAN share)
 ```
 
 Don't run `./lan.py install` / `uninstall` casually: they install real software, change firewall rules (via sudo on
@@ -42,6 +43,9 @@ Linux) and delete user data.
 - All external commands go through `lanparty/runner.py` (`Runner.run`, `Runner.exists`). Tests replace it with
   `FakeRunner` and `FakeUfw` from `tests/fakes.py`, so no test runs real commands. Platform-only modules (`winreg`,
   `ctypes.windll`) are imported inside functions, so `windows.py` stays importable on Linux.
+- `games-lan.toml` (temporary, LAN party only) is `games.toml` with every `url` set to `%SHARE%/<id>/<file>`. Its
+  `[share]` table gives the share folder per OS, filled in by `config.fill_share`. `download()` copies plain paths
+  instead of fetching them. A test in `tests/test_config.py` fails when the two files differ in anything but the URLs.
 - `lanparty/download.py` handles downloads, which always carry a sha256 check. It also does ZIP extraction and the
   path placeholders (`~` everywhere, `%APPDATA%` and similar only on Windows). SourceForge needs the Wget user agent
   set there.

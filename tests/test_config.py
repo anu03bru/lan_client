@@ -1,8 +1,14 @@
 import tomllib
 import unittest
+from unittest import mock
 
-from lanparty.cli import GAMES_FILE
-from lanparty.config import ConfigError, load_games, parse_games
+from lanparty.cli import REPO_DIR
+from lanparty.config import ConfigError, fill_share, load_games, parse_games
+from lanparty.download import file_name_from_url
+
+# Named directly, not cli.GAMES_FILE, so the tests still check games.toml when the default changes
+GAMES_FILE = REPO_DIR / "games.toml"
+LAN_GAMES_FILE = REPO_DIR / "games-lan.toml"
 
 VALID_GAME = """
 [stk]
@@ -45,6 +51,75 @@ class GamesFileTest(unittest.TestCase):
             self.assertIsNotNone(game.macos, game.id)
         self.assertIsNotNone(games["0ad"].macos.arm64_url)
         self.assertTrue(all(asset.macos_dest for asset in games["doom"].assets))
+
+
+class LanGamesFileTest(unittest.TestCase):
+    """games-lan.toml must stay games.toml with share URLs. Delete together with games-lan.toml after the party."""
+
+    def load_raw(self, path):
+        with open(path, "rb") as games_file:
+            return tomllib.load(games_file)
+
+    def test_same_as_games_toml_except_urls(self):
+        original = self.load_raw(GAMES_FILE)
+        lan = self.load_raw(LAN_GAMES_FILE)
+        self.assertEqual(sorted(lan.pop("share")), ["linux", "macos", "windows"])
+        self.assertEqual(list(lan), list(original))
+        for game_id in original:
+            self.assert_same(original[game_id], lan[game_id], game_id, f"[{game_id}]")
+
+    def assert_same(self, original, lan, game_id, where):
+        self.assertIs(type(lan), type(original), where)
+        if isinstance(original, dict):
+            self.assertEqual(sorted(lan), sorted(original), where)
+            for key, value in original.items():
+                if key == "url":
+                    self.assertEqual(lan[key], f"%SHARE%/{game_id}/{file_name_from_url(value)}", where)
+                else:
+                    self.assert_same(value, lan[key], game_id, f"{where} {key}")
+        elif isinstance(original, list):
+            self.assertEqual(len(lan), len(original), where)
+            for index, (original_item, lan_item) in enumerate(zip(original, lan)):
+                self.assert_same(original_item, lan_item, game_id, f"{where} #{index + 1}")
+        else:
+            self.assertEqual(lan, original, where)
+
+    def test_loads_with_share_folder_of_this_os(self):
+        games = {game.id: game for game in load_games(LAN_GAMES_FILE)}
+        self.assertNotIn("%SHARE%", games["doom"].assets[0].url)
+        self.assertTrue(games["doom"].assets[0].url.endswith("/doom/freedm-0.13.0.zip"))
+
+
+class ShareTest(unittest.TestCase):
+    SHARE = {"windows": "//srv/lan", "macos": "/Volumes/lan", "linux": "~/lan/"}
+    TABLES = {"stk": {"url": "%SHARE%/stk/a.zip", "list": [{"url": "%SHARE%/b.zip"}]}}
+
+    def fill(self, platform, share=SHARE):
+        with mock.patch("lanparty.config.current_platform", return_value=platform):
+            return fill_share({"share": share, **self.TABLES})
+
+    def test_replaced_with_the_folder_of_this_os(self):
+        self.assertEqual(self.fill("windows")["stk"]["url"], "//srv/lan/stk/a.zip")
+        self.assertEqual(self.fill("macos")["stk"]["list"][0]["url"], "/Volumes/lan/b.zip")
+        with mock.patch("lanparty.config.Path.home", return_value=mock.Mock(as_posix=lambda: "/home/a")):
+            self.assertEqual(self.fill("linux")["stk"]["url"], "/home/a/lan/stk/a.zip")
+
+    def test_share_table_checked(self):
+        with self.assertRaises(ConfigError) as caught:
+            self.fill("linux", {"windows": "x", "macos": "y"})
+        self.assertIn("missing linux", str(caught.exception))
+        with self.assertRaises(ConfigError) as caught:
+            self.fill("linux", {**self.SHARE, "bsd": "z"})
+        self.assertIn("unknown key bsd", str(caught.exception))
+
+    def test_placeholder_without_share_table(self):
+        with self.assertRaises(ConfigError) as caught:
+            fill_share(self.TABLES)
+        self.assertIn("no [share] table", str(caught.exception))
+
+    def test_without_share_nothing_changes(self):
+        tables = {"stk": {"url": "https://x/a.zip"}}
+        self.assertEqual(fill_share(tables), tables)
 
 
 class ValidationTest(unittest.TestCase):

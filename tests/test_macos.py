@@ -37,7 +37,7 @@ apps = ["SuperTuxKart.app"]
 class FakeMac:
     """Fakes hdiutil and ditto: the "disk image" and the "ZIP" contain the apps in `image_apps`."""
 
-    def __init__(self, image_apps: list[str], version: str = "0.28.0") -> None:
+    def __init__(self, image_apps: list[str], version: dict | str = "0.28.0") -> None:
         self.image_apps = image_apps
         self.version = version
         self.mounted: set[str] = set()
@@ -60,7 +60,8 @@ class FakeMac:
             contents = folder / app / "Contents"
             contents.mkdir(parents=True)
             with open(contents / "Info.plist", "wb") as plist_file:
-                plistlib.dump({"CFBundleShortVersionString": self.version}, plist_file)
+                info = self.version if isinstance(self.version, dict) else {"CFBundleShortVersionString": self.version}
+                plistlib.dump(info, plist_file)
 
 
 def fake_download(url, target, sha256):
@@ -122,6 +123,19 @@ class MacosTest(unittest.TestCase):
 
     def test_version_mismatch_only_warns(self):
         macos, _runner, output = self.make(FakeMac(["0 A.D..app"], version="0.27.1"))
+        macos.install(ZERO_AD)
+        self.assertIn('WARNING: Installed version is "0.27.1", expected "0.28.0".', output.getvalue())
+
+    def test_app_without_usable_version_does_not_warn(self):
+        for info in ({}, {"CFBundleVersion": "1.3.x.x"}):
+            with self.subTest(info=info):
+                macos, _runner, output = self.make(FakeMac(["0 A.D..app"], version=info))
+                macos.install(ZERO_AD)
+                self.assertIn("OK (the app doesn't record its version", output.getvalue())
+                self.assertEqual(macos.steps.warnings, [])
+
+    def test_bundle_version_is_used_without_short_version(self):
+        macos, _runner, output = self.make(FakeMac(["0 A.D..app"], version={"CFBundleVersion": "0.27.1"}))
         macos.install(ZERO_AD)
         self.assertIn('WARNING: Installed version is "0.27.1", expected "0.28.0".', output.getvalue())
 

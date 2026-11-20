@@ -10,7 +10,7 @@ import sys
 import urllib.request
 import zipfile
 from pathlib import Path, PurePosixPath
-from typing import Mapping
+from typing import BinaryIO, Mapping
 
 # SourceForge sends an HTML page to browsers, but the real file to wget
 USER_AGENT = "Wget/1.21"
@@ -18,13 +18,34 @@ VARIABLE_PATTERN = re.compile(r"%([A-Za-z_]+)%")
 
 
 def download(url: str, target: Path, expected_sha256: str) -> None:
+    """Downloads url, or copies it when it is a plain path (a file on the LAN share), and checks the sha256."""
+    if is_local(url):
+        source = Path(url)
+        with open(source, "rb") as source_file:
+            _copy_checked(source_file, source.stat().st_size, target, expected_sha256)
+        return
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(request, timeout=60) as response:
+        _copy_checked(response, int(response.headers.get("Content-Length") or 0), target, expected_sha256)
+
+
+def is_local(url: str) -> bool:
+    return "://" not in url
+
+
+def download_hint(url: str) -> str:
+    if is_local(url):
+        return (f"Open the LAN share first (see docs/lan-share.md), or check the [share] table in games-lan.toml. "
+                f"File: {url}")
+    return f"Check the internet connection and the URL: {url}"
+
+
+def _copy_checked(source: BinaryIO, total_bytes: int, target: Path, expected_sha256: str) -> None:
     digest = hashlib.sha256()
-    with urllib.request.urlopen(request, timeout=60) as response, open(target, "wb") as target_file:
-        total_bytes = int(response.headers.get("Content-Length") or 0)
+    with open(target, "wb") as target_file:
         done_bytes = 0
         shown_percent = -1
-        while chunk := response.read(1024 * 1024):
+        while chunk := source.read(1024 * 1024):
             target_file.write(chunk)
             digest.update(chunk)
             done_bytes += len(chunk)

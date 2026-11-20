@@ -1,0 +1,220 @@
+# LAN PARTY COPY of games.toml: the same games, but every file comes from the LAN share instead of the internet.
+# Temporary: delete this file (and docs/lan-share.md, scripts/fill_share.py, its test) after the party.
+# Use it with:  lan.py --games games-lan.toml install all
+# Keep it in sync with games.toml; tests/test_config.py fails when the two differ in anything but the URLs.
+# Fill the share with scripts/fill_share.py, see docs/lan-share.md.
+
+# Where the LAN share is opened on each OS. The only thing to change once the share exists.
+# %SHARE% in the URLs below is replaced with the value for the current OS. Use / as separator.
+#   windows  \\FILESERVER\lanparty, written with /
+#   macos    after Finder > Go > Connect to Server > smb://FILESERVER/lanparty
+#   linux    after opening smb://FILESERVER/lanparty in the file manager (gvfs; 1000 = the user id, see `id -u`)
+[share]
+windows = "//FILESERVER/lanparty"
+macos = "/Volumes/lanparty"
+linux = "/run/user/1000/gvfs/smb-share:server=fileserver,share=lanparty"
+
+# Games for lan.py. One table per game; the table name is the id used on the command line
+# (e.g. `./lan.py install supertuxkart`). Values that still need checking on a test machine are listed in
+# .claude/open.md.
+#
+# Game fields
+#   name      Display name. Also the ufw rule comment (Linux) and the start of the firewall rule name (Windows),
+#             so don't rename a game while it is installed somewhere: uninstall would not find its rules.
+#   version   Optional. Warns when the installed Flatpak has a different version (all players need the same one).
+#   ports     Optional. Opened on install and closed on uninstall. Only needed by the player who hosts.
+#   reply_ports  Optional, Linux only. For games that find LAN servers by broadcast: the host answers from this
+#             port, and ufw drops that answer because it can't match it to the broadcast. Install allows incoming
+#             packets from this source port, from private LAN addresses only. Needed by every player who searches.
+#   hint      Optional. Printed after the install.
+#
+# [<id>.linux]
+#   type = "flatpak"          app_id                    App from Flathub
+#     optional: commit = "..."                          Pins the Flathub build (x86_64). Get it from
+#                                                       flatpak remote-info --log flathub <app_id>, newest commit
+#                                                       whose Version matches `version`
+#   type = "flatpak-bundle"   app_id, url, sha256       A .flatpak file
+#   optional: data = [...]                              Extra folders deleted on uninstall
+#   optional: [<id>.linux.overrides] env = {...}, filesystem = [...]   Flatpak permissions
+#
+# [<id>.windows]
+#   type = "nsis"   url, sha256, uninstall_name         Silent installer (/S). uninstall_name is matched against
+#                                                       the program name in "Apps & features" (* = wildcard).
+#                                                       Files the uninstaller leaves behind are deleted when the
+#                                                       install folder's name matches uninstall_name too
+#   type = "zip"    url, sha256, install_dir            Portable ZIP, extracted into install_dir
+#   optional: shortcuts = [{ name, target }]            Desktop shortcuts; target is an .exe inside install_dir
+#   optional: data = [...]                              User data folders deleted on uninstall
+#
+# [<id>.macos]
+#   type = "dmg"    url, sha256, apps                   Disk image
+#   type = "zip"    url, sha256, apps                   ZIP file
+#   apps = ["X.app", ...]                               App bundles in the download (top level or one folder deeper).
+#                                                       Copied into ~/Applications, removed on uninstall
+#   optional: arm64 = { url, sha256 }                   Separate build for Apple Silicon Macs
+#   optional: data = [...]                              User data folders deleted on uninstall
+#
+# [[<id>.assets]]  url, sha256, extract, linux_dest, windows_dest, macos_dest
+#   Extra ZIP downloads. Files matching `extract` (e.g. "*.wad") are copied into the dest folder.
+#   The dest folders are deleted on uninstall. macos_dest is only needed when the game has a macos table.
+#
+# Paths: ~ is your home folder. On Windows %APPDATA%, %LOCALAPPDATA%, %USERPROFILE%, %DOCUMENTS% and %DESKTOP%
+# can be used. Use / as separator on all systems.
+# games-lan.toml (LAN party only) also has a [share] table and %SHARE% in its URLs, see docs/lan-share.md.
+
+[doom]
+name = "Doom (Odamex + Freedoom)"
+hint = "Multiplayer: start Odalaunch and join the LAN server, or add it manually: <SERVER-IP>:10666"
+
+[doom.linux]
+type = "flatpak-bundle"
+app_id = "net.odamex.Odamex"
+url = "%SHARE%/doom/odamex-linux-x86_64-12.3.0.flatpak"
+sha256 = "b5612f397e40847d01e6655adccc309dea9305d9ddc7563ac6296288f1ea94bf"
+data = ["~/OdamexLAN"]
+
+[doom.linux.overrides]
+env = { DOOMWADDIR = "~/OdamexLAN/wads" }
+filesystem = ["~/OdamexLAN/wads:ro"]
+
+[doom.windows]
+type = "zip"
+url = "%SHARE%/doom/odamex-win64-12.3.0.zip"
+sha256 = "4013fa90335a801e6637dd039370f3d15bf321c2b16fda8b3617b7fd0cf1e874"
+install_dir = "%LOCALAPPDATA%/OdamexLAN"
+shortcuts = [
+    { name = "Odamex LAN", target = "odalaunch.exe" },
+    { name = "Odamex Singleplayer", target = "odamex.exe" },
+]
+data = ["%DOCUMENTS%/My Games/Odamex"]
+
+[doom.macos]
+type = "dmg"
+url = "%SHARE%/doom/odamex-macos-12.3.0.dmg"
+sha256 = "8b291c12dac93bf2be31ac21dcf55b022d9918d1f1f4477cdf65d4e9ce6f6d74"
+apps = ["Odamex.app", "odalaunch.app"]
+# Odamex's user folder on macOS. It also searches it for WADs, see assets below
+data = ["~/.odamex"]
+
+[[doom.assets]]
+url = "%SHARE%/doom/freedm-0.13.0.zip"
+sha256 = "b420f13508ef745d7b38e83d15e55e0fc0b09d9a503c96741cddd9773d43f7c9"
+extract = "*.wad"
+linux_dest = "~/OdamexLAN/wads"
+windows_dest = "%LOCALAPPDATA%/OdamexLAN"
+macos_dest = "~/.odamex"
+
+[[doom.assets]]
+url = "%SHARE%/doom/freedoom-0.13.0.zip"
+sha256 = "3f9b264f3e3ce503b4fb7f6bdcb1f419d93c7b546f4df3e874dd878db9688f59"
+extract = "*.wad"
+linux_dest = "~/OdamexLAN/wads"
+windows_dest = "%LOCALAPPDATA%/OdamexLAN"
+macos_dest = "~/.odamex"
+
+
+[blobby_volley]
+name = "Blobby Volley 2"
+version = "1.1.1"
+ports = ["1234/udp"]  # default port when hosting a network game
+
+[blobby_volley.linux]
+type = "flatpak"
+app_id = "de.blobbyvolley.BlobbyVolley2"
+commit = "160895b4e2b019f2d240f24b3bf632beb43c5fb89d696718c6a5ccb6f8b20ba5"  # 1.1.1
+
+[blobby_volley.windows]
+type = "zip"
+url = "%SHARE%/blobby_volley/blobby2-win32-1.1.1.zip"
+sha256 = "157b8d340bf89d1a6583d689dbb716099762211944c3ca7b588947b6cd7187ff"
+install_dir = "%LOCALAPPDATA%/BlobbyVolley2"
+shortcuts = [{ name = "Blobby Volley 2", target = "blobby.exe" }]
+data = ["%APPDATA%/blobby", "%APPDATA%/.blobby"]
+
+[blobby_volley.macos]
+type = "dmg"
+url = "%SHARE%/blobby_volley/blobby2-macosx-1.1.1.dmg"
+sha256 = "a2e2a67a3c77a0ace49b4db3b4ee2eaeba8f9c5b02a15b3eec5b033bba36a879"
+apps = ["blobby.app"]
+data = ["~/Library/Application Support/blobby"]
+
+
+[0ad]
+name = "0 A.D."
+version = "0.28.0"
+ports = ["20595/udp"]  # used when hosting ("Host Game")
+hint = "Multiplayer: one player uses 'Host Game', the others 'Join Game' with the host's IP."
+
+[0ad.linux]
+type = "flatpak"
+app_id = "com.play0ad.zeroad"
+commit = "2aa7e3f4b8123976a10f039a150f4dc34066267c0893821449594e3244cb09b2"  # 0.28.0
+
+[0ad.windows]
+type = "nsis"
+url = "%SHARE%/0ad/0ad-0.28.0-win64.exe"
+sha256 = "9b5e1a16d4e0df9c84e052f56fb75da69518d5634c88d2b38db69baee63c16a1"
+uninstall_name = "0 A.D.*"
+data = ["%APPDATA%/0ad", "%LOCALAPPDATA%/0ad", "%DOCUMENTS%/My Games/0ad"]
+
+[0ad.macos]
+type = "dmg"
+url = "%SHARE%/0ad/0ad-0.28.0-macos-x86_64.dmg"
+sha256 = "3d30cbafb293fb1178c08075ed8336d1dbfb1090d3702ada76092e85e9c4f076"
+arm64 = { url = "%SHARE%/0ad/0ad-0.28.0-macos-aarch64.dmg", sha256 = "8c53566123fed9a79766c364e543d6e9dc7c84f642c78d2bb5892eeea9c4c052" }
+apps = ["0 A.D..app"]
+data = ["~/Library/Application Support/0ad", "~/Library/Caches/0ad", "~/Library/Logs/0ad"]
+
+
+[supertuxkart]
+name = "SuperTuxKart"
+version = "1.5"
+# 2759 = game server, 2757 = LAN server discovery (needed when hosting via "Create server")
+ports = ["2759/udp", "2757/udp"]
+# The host answers the LAN search from 2757. Without this, the server list stays empty on Linux with ufw active
+reply_ports = ["2757/udp"]
+hint = "Multiplayer: Online -> Local network. The host uses 'Create server'."
+
+[supertuxkart.linux]
+type = "flatpak"
+app_id = "net.supertuxkart.SuperTuxKart"
+commit = "a6969d346d0915bc1f4b2ba2fc4e69475d5bbb8ece84cca59480f214e15bc692"  # 1.5
+
+[supertuxkart.windows]
+type = "nsis"
+url = "%SHARE%/supertuxkart/SuperTuxKart-1.5-installer-x86_64.exe"
+sha256 = "a1260ebb73dd9da13ec3e37f526f29e494b3b66c00c05fd70767b30a4497d95e"
+uninstall_name = "SuperTuxKart*"
+data = ["%APPDATA%/supertuxkart", "%LOCALAPPDATA%/supertuxkart"]
+
+[supertuxkart.macos]
+type = "zip"
+url = "%SHARE%/supertuxkart/SuperTuxKart-1.5-mac-signed.zip"
+sha256 = "c266acdb8a63a3fe30f52652d9b749f5beba4abeb9e54382fbb934b00c53b303"
+apps = ["SuperTuxKart.app"]
+data = ["~/Library/Application Support/SuperTuxKart"]
+
+
+[assaultcube]
+name = "AssaultCube"
+version = "1.3.0.2"
+hint = "Multiplayer: Multiplayer -> Join a LAN server."
+
+[assaultcube.linux]
+type = "flatpak"
+app_id = "net.cubers.assault.AssaultCube"
+commit = "1b65c8ff55a5f8ba2478408424e2ccfbc95c7171449bc75261f8f7a102c8519d"  # 1.3.0.2
+
+[assaultcube.windows]
+type = "nsis"
+url = "%SHARE%/assaultcube/AssaultCube_v1.3.0.2_LockdownEdition.exe"
+sha256 = "77eff4497232562eeb1862f97d484777202e8ac42c411093a821234045ee61a5"
+uninstall_name = "AssaultCube*"
+data = ["%DOCUMENTS%/My Games/AssaultCube"]
+
+[assaultcube.macos]
+type = "dmg"
+url = "%SHARE%/assaultcube/AssaultCube_v1.3.0.2_LockdownEdition.dmg"
+sha256 = "3aba97191904d9167e9f6c8caf8c472453fb4f987acb127ee2c7d2c2f8128eba"
+apps = ["AssaultCube.app"]
+data = ["~/Library/Application Support/assaultcube"]
