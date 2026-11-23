@@ -52,7 +52,8 @@ jobs:
               {"name": "cachyos", "runner": "ubuntu-24.04", "image": "cachyos/cachyos:latest@sha256:a8bb34493c7765031a2f8a29da5b0ca52eb29bf805f56a725fcdc093bba79b8b", "options": "--privileged"},
           ]
           with open("games.toml", "rb") as games_file:
-              all_game_ids = list(tomllib.load(games_file))
+              # [runtimes] is not a game
+          all_game_ids = [key for key in tomllib.load(games_file) if key != "runtimes"]
 
           def choose(input_name, text, choices):
               wanted = [item.strip() for item in text.split(",") if item.strip()]

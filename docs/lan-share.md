@@ -32,7 +32,7 @@ Doom comes from the share.
 
 1. **Fill the share** at home, where the internet is fast:
    `python3 scripts/fill_share.py <folder>`.
-   It downloads every file from `games.toml` into `<folder>/<game id>/<file name>` and checks its sha256. You can run
+   It downloads every file from `games.toml` into `<folder>/<game id>/<file name>` (the Visual C++ Redistributable for Windows into `<folder>/runtimes/`) and checks its sha256. You can run
    it again: files that are already there with the right checksum are skipped. Copy the contents of `<folder>` to
    the root of the share.
 2. **Set the share address**: edit the `[share]` table at the top of `games-lan.toml`, one path per OS. Use `/` as

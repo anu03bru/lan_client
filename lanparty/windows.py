@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from .config import Game, WindowsSpec
+from .config import Game, Runtime, WindowsSpec
 from .download import (
     download, download_hint, expand_path, extract_all, extract_matching, file_name_from_url, remove_path,
 )
@@ -35,6 +35,14 @@ UNINSTALL_TIMEOUT_SECONDS = 300
 INSTALL_TIMEOUT_SECONDS = 900
 # Written into a ZIP game's folder; holds the download URL of the installed version
 VERSION_MARKER = ".lanparty-version"
+# Where the Visual C++ 2015-2022 Redistributable (x64) records its version. The installer is 32 bit, so the key is
+# usually in the 32-bit registry view (WOW6432Node); both views are checked.
+VCREDIST_X64_KEY = r"SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64"
+# Always the newest build, so it can't be pinned in games.toml, but it's the right link for a manual install
+VCREDIST_X64_LATEST_URL = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+# Exit codes of the Visual C++ Redistributable installer that aren't errors
+VCREDIST_RESTART_NEEDED = 3010
+VCREDIST_NEWER_INSTALLED = 1638
 
 
 @dataclass(frozen=True)
@@ -89,6 +97,13 @@ class Windows:
         steps = self.steps
         with tempfile.TemporaryDirectory(prefix="lanparty-") as temp_name:
             temp_dir = Path(temp_name)
+            # Before the game: without it the game installs fine but doesn't start
+            for runtime in spec.requires:
+                steps.run(
+                    f"Install {runtime.name}",
+                    f"Download and run it manually: {VCREDIST_X64_LATEST_URL}",
+                    self._install_runtime, runtime, temp_dir,
+                )
             download_path = temp_dir / file_name_from_url(spec.url)
             steps.run(
                 f"Download {game.name}",
@@ -152,6 +167,33 @@ class Windows:
                     f"{ps_quote(rule_name)} -Direction Inbound -Protocol {protocol} -LocalPort {ports} -Action Allow",
                     self._add_firewall_rule, rule_name, protocol, ports,
                 )
+
+    def _install_runtime(self, runtime: Runtime, temp_dir: Path) -> str | None:
+        """Installs the runtime unless this version or a newer one is there. Never removed on uninstall."""
+        wanted = version_tuple(runtime.version)
+        installed = self._runtime_version(runtime)
+        if installed is not None and installed >= wanted:
+            return f"version {'.'.join(map(str, installed))} installed, nothing to do"
+        installer_path = temp_dir / file_name_from_url(runtime.url)
+        self.steps.info(f"Downloading {file_name_from_url(runtime.url)}")
+        download(runtime.url, installer_path, runtime.sha256)
+        self.steps.info("Running the installer")
+        result = self.runner.run([str(installer_path), "/install", "/quiet", "/norestart"], check=False,
+                                 timeout=INSTALL_TIMEOUT_SECONDS)
+        if result.returncode == VCREDIST_NEWER_INSTALLED:
+            return "a newer version is already installed"
+        if result.returncode == VCREDIST_RESTART_NEEDED:
+            self.steps.warn("Restart Windows before starting the game, so the update can finish.")
+            self.steps.warnings.append(f"Install {runtime.name} (restart Windows)")
+            return "installed, restart needed"
+        if result.returncode != 0:
+            raise RuntimeError(f"Installer exited with code {result.returncode}")
+        return None
+
+    def _runtime_version(self, runtime: Runtime) -> tuple[int, ...] | None:
+        if runtime.type == "vcredist-x64":
+            return self.registry.vcredist_x64_version()
+        raise ValueError(f"Unknown runtime type {runtime.type!r}")
 
     def _run_installer(self, installer_path: Path) -> None:
         result = self.runner.run([str(installer_path), "/S"], check=False, timeout=INSTALL_TIMEOUT_SECONDS)
@@ -290,6 +332,12 @@ def remove_other_version(install_dir: Path, url: str) -> str | None:
     return None
 
 
+def version_tuple(version: str) -> tuple[int, ...]:
+    """"14.44.35211" -> (14, 44, 35211, 0), padded to the four parts the registry has."""
+    parts = [int(part) for part in version.split(".")]
+    return tuple(parts + [0] * (4 - len(parts)))
+
+
 def firewall_rules(game: Game) -> list[tuple[str, str, str]]:
     """One rule per protocol. The name matches what the old install scripts created,
     e.g. "SuperTuxKart multiplayer (UDP 2757,2759)", so uninstall also finds those."""
@@ -382,6 +430,20 @@ class Registry:
                         entries.append(UninstallEntry(str(display_name), str(uninstall_string), root_name,
                                                       f"{key_path}\\{sub_name}"))
         return entries
+
+    def vcredist_x64_version(self) -> tuple[int, ...] | None:
+        """(major, minor, build, revision) of the installed Visual C++ Redistributable (x64), None if missing."""
+        import winreg
+
+        for view in (winreg.KEY_WOW64_32KEY, winreg.KEY_WOW64_64KEY):
+            try:
+                with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, VCREDIST_X64_KEY, 0, winreg.KEY_READ | view) as key:
+                    if winreg.QueryValueEx(key, "Installed")[0] != 1:
+                        continue
+                    return tuple(int(winreg.QueryValueEx(key, name)[0]) for name in ("Major", "Minor", "Bld", "Rbld"))
+            except (OSError, ValueError):
+                continue
+        return None
 
     def exists(self, entry: UninstallEntry) -> bool:
         import winreg
