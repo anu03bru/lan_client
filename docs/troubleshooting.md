@@ -28,7 +28,7 @@ Running the install again is safe.
 | macOS game can't find or join a server | **System Settings → Privacy & Security → Local Network** → enable the game. AssaultCube: see [below](#assaultcube-could-not-connect-to-server-macos). |
 
 Ports, only needed by the player who hosts: Blobby Volley 1234/udp, 0 A.D. 20595/udp,
-SuperTuxKart 2757/udp and 2759/udp. Doom and AssaultCube use a separate server machine.
+SuperTuxKart 2757/udp and 2759/udp, AssaultCube 28763/udp, 28764/udp and 28762/udp. Doom uses a separate server machine.
 On Linux, SuperTuxKart also needs a rule for **every** player, so the server list works: `lan.py install` adds it.
 
 ## SuperTuxKart: no server found

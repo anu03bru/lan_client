@@ -182,6 +182,7 @@ data = ["~/Library/Application Support/SuperTuxKart"]
 [assaultcube]
 name = "AssaultCube"
 version = "1.3.0.2"
+ports = ["28763/udp", "28764/udp", "28762/udp"]  # game, server info (game + 1), LAN discovery
 hint = "Multiplayer: Multiplayer -> Join a LAN server."
 
 [assaultcube.linux]
