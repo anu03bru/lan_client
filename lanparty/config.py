@@ -32,14 +32,16 @@ class Asset:
 
 @dataclass(frozen=True)
 class Runtime:
-    """Something a Windows game needs to start, e.g. the Visual C++ Redistributable. Installed only when missing,
-    never removed: other programs use it too."""
+    """Something a game needs to start: the Visual C++ Redistributable on Windows, or a Flatpak runtime bundle on
+    Linux (games-lan.toml, so the runtime comes from the LAN share instead of Flathub). Installed only when missing.
+    The Visual C++ Redistributable is never removed, Flatpak runtimes go with `flatpak uninstall --unused`."""
     id: str
     type: str
     name: str
     url: str
     sha256: str
-    version: str
+    version: str | None = None  # vcredist-x64: the minimum version
+    ref: str | None = None  # flatpak-runtime: e.g. "org.freedesktop.Platform//26.08"
 
 
 @dataclass(frozen=True)
@@ -52,6 +54,10 @@ class LinuxSpec:
     override_env: dict[str, str] = field(default_factory=dict)
     override_filesystem: tuple[str, ...] = ()
     data: tuple[str, ...] = ()
+    # type "flatpak" only: install this .flatpak file instead of going to Flathub (games-lan.toml)
+    bundle_url: str | None = None
+    bundle_sha256: str | None = None
+    requires: tuple[Runtime, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -95,11 +101,12 @@ GAME_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
 PORT_PATTERN = re.compile(r"^\d{1,5}/(udp|tcp)$")
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 VERSION_PATTERN = re.compile(r"^\d+(\.\d+){1,3}$")
+FLATPAK_REF_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+//[A-Za-z0-9_.-]+$")
 
 # type -> (required keys, optional keys)
 LINUX_TYPES = {
-    "flatpak": ({"type", "app_id"}, {"commit", "overrides", "data"}),
-    "flatpak-bundle": ({"type", "app_id", "url", "sha256"}, {"overrides", "data"}),
+    "flatpak": ({"type", "app_id"}, {"commit", "overrides", "data", "bundle", "requires"}),
+    "flatpak-bundle": ({"type", "app_id", "url", "sha256"}, {"overrides", "data", "requires"}),
 }
 WINDOWS_TYPES = {
     "nsis": ({"type", "url", "sha256", "uninstall_name"}, {"data", "requires"}),
@@ -111,7 +118,10 @@ MACOS_TYPES = {
 }
 RUNTIME_TYPES = {
     "vcredist-x64": ({"type", "name", "url", "sha256", "version"}, set()),
+    "flatpak-runtime": ({"type", "name", "ref", "url", "sha256"}, set()),
 }
+# Which platform's `requires` may use a runtime type
+RUNTIME_PLATFORMS = {"vcredist-x64": "windows", "flatpak-runtime": "linux"}
 PLATFORMS = ("linux", "windows", "macos")
 # Stands for the LAN share folder in games-lan.toml, set per OS by its [share] table
 SHARE_PLACEHOLDER = "%SHARE%"
@@ -186,8 +196,11 @@ def _parse_runtimes(tables: Any) -> dict[str, Runtime]:
         required, optional = RUNTIME_TYPES[spec_type]
         _check_keys(where, table, required, optional)
         version = _string(where, table, "version")
-        if not VERSION_PATTERN.match(version):
+        if version is not None and not VERSION_PATTERN.match(version):
             raise ConfigError(f"{where}: version must look like 14.44.35211")
+        ref = _string(where, table, "ref")
+        if ref is not None and not FLATPAK_REF_PATTERN.match(ref):
+            raise ConfigError(f"{where}: ref must look like org.freedesktop.Platform//26.08")
         runtimes[runtime_id] = Runtime(
             id=runtime_id,
             type=spec_type,
@@ -195,6 +208,7 @@ def _parse_runtimes(tables: Any) -> dict[str, Runtime]:
             url=_string(where, table, "url"),
             sha256=_sha256(where, table),
             version=version,
+            ref=ref,
         )
     return runtimes
 
@@ -221,14 +235,14 @@ def _parse_game(game_id: str, table: Any, runtimes: dict[str, Runtime]) -> Game:
         ports=ports,
         reply_ports=reply_ports,
         hint=_string(where, table, "hint"),
-        linux=_parse_linux(f"[{game_id}.linux]", table["linux"]) if "linux" in table else None,
+        linux=_parse_linux(f"[{game_id}.linux]", table["linux"], runtimes) if "linux" in table else None,
         windows=_parse_windows(f"[{game_id}.windows]", table["windows"], runtimes) if "windows" in table else None,
         macos=_parse_macos(f"[{game_id}.macos]", table["macos"]) if "macos" in table else None,
         assets=parsed_assets,
     )
 
 
-def _parse_linux(where: str, table: Any) -> LinuxSpec:
+def _parse_linux(where: str, table: Any, runtimes: dict[str, Runtime]) -> LinuxSpec:
     spec_type = _spec_type(where, table, LINUX_TYPES)
     required, optional = LINUX_TYPES[spec_type]
     _check_keys(where, table, required, optional)
@@ -239,6 +253,9 @@ def _parse_linux(where: str, table: Any) -> LinuxSpec:
     if not isinstance(override_env, dict) or not all(isinstance(value, str) for value in override_env.values()):
         raise ConfigError(f"{where} overrides: env must be a table of strings")
 
+    bundle = table.get("bundle", {})
+    _check_keys(f"{where} bundle", bundle, {"url", "sha256"} if bundle else set(), set() if bundle else {"url", "sha256"})
+
     return LinuxSpec(
         type=spec_type,
         app_id=_string(where, table, "app_id"),
@@ -248,6 +265,9 @@ def _parse_linux(where: str, table: Any) -> LinuxSpec:
         override_env=dict(override_env),
         override_filesystem=_strings(f"{where} overrides", overrides, "filesystem"),
         data=_strings(where, table, "data"),
+        bundle_url=_string(f"{where} bundle", bundle, "url"),
+        bundle_sha256=_sha256(f"{where} bundle", bundle),
+        requires=_requires(where, table, runtimes, "linux"),
     )
 
 
@@ -262,12 +282,6 @@ def _parse_windows(where: str, table: Any, runtimes: dict[str, Runtime]) -> Wind
     for shortcut in shortcuts:
         _check_keys(f"{where} shortcut", shortcut, {"name", "target"}, set())
 
-    requires = _strings(where, table, "requires")
-    for runtime_id in requires:
-        if runtime_id not in runtimes:
-            known = ", ".join(runtimes) or "none"
-            raise ConfigError(f"{where}: requires unknown runtime {runtime_id!r} (defined in [runtimes]: {known})")
-
     return WindowsSpec(
         type=spec_type,
         url=_string(where, table, "url"),
@@ -276,7 +290,7 @@ def _parse_windows(where: str, table: Any, runtimes: dict[str, Runtime]) -> Wind
         install_dir=_string(where, table, "install_dir"),
         shortcuts=tuple(Shortcut(name=str(item["name"]), target=str(item["target"])) for item in shortcuts),
         data=_strings(where, table, "data"),
-        requires=tuple(runtimes[runtime_id] for runtime_id in dict.fromkeys(requires)),
+        requires=_requires(where, table, runtimes, "windows"),
     )
 
 
@@ -313,6 +327,19 @@ def _parse_asset(where: str, table: Any) -> Asset:
         windows_dest=_string(where, table, "windows_dest"),
         macos_dest=_string(where, table, "macos_dest"),
     )
+
+
+def _requires(where: str, table: dict, runtimes: dict[str, Runtime], platform: str) -> tuple[Runtime, ...]:
+    required = []
+    for runtime_id in dict.fromkeys(_strings(where, table, "requires")):
+        if runtime_id not in runtimes:
+            known = ", ".join(runtimes) or "none"
+            raise ConfigError(f"{where}: requires unknown runtime {runtime_id!r} (defined in [runtimes]: {known})")
+        runtime = runtimes[runtime_id]
+        if RUNTIME_PLATFORMS[runtime.type] != platform:
+            raise ConfigError(f"{where}: runtime {runtime_id!r} is a {runtime.type} runtime, not for {platform}")
+        required.append(runtime)
+    return tuple(required)
 
 
 def _spec_type(where: str, table: Any, types: dict) -> str:

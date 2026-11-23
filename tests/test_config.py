@@ -84,9 +84,33 @@ class LanGamesFileTest(unittest.TestCase):
         original = self.load_raw(GAMES_FILE)
         lan = self.load_raw(LAN_GAMES_FILE)
         self.assertEqual(sorted(lan.pop("share")), ["linux", "macos", "windows"])
+        self.remove_lan_only(lan)
         self.assertEqual(list(lan), list(original))
         for game_id in original:
             self.assert_same(original[game_id], lan[game_id], game_id, f"[{game_id}]")
+
+    def remove_lan_only(self, lan):
+        """Linux Flatpak bundles exist only on the share (scripts/build_flatpak_bundles.py), not in games.toml:
+        the flatpak-runtime runtimes, and bundle/requires in the linux tables. Their URLs are checked here."""
+        for runtime_id, runtime in list(lan.get("runtimes", {}).items()):
+            if runtime["type"] == "flatpak-runtime":
+                self.assertEqual(runtime["url"], f"%SHARE%/runtimes/{file_name_from_url(runtime['url'])}", runtime_id)
+                del lan["runtimes"][runtime_id]
+        for game_id, table in lan.items():
+            linux = table.get("linux", {}) if game_id != "runtimes" else {}
+            if "bundle" in linux:
+                url = linux.pop("bundle")["url"]
+                self.assertEqual(url, f"%SHARE%/{game_id}/{file_name_from_url(url)}", game_id)
+            linux.pop("requires", None)
+
+    def test_linux_games_come_from_bundles(self):
+        games = {game.id: game for game in load_games(LAN_GAMES_FILE)}
+        for game in games.values():
+            if game.linux.type == "flatpak":
+                self.assertIsNotNone(game.linux.bundle_url, game.id)
+                self.assertIsNotNone(game.linux.commit, game.id)
+            self.assertEqual({runtime.ref.split("//")[0] for runtime in game.linux.requires},
+                             {"org.freedesktop.Platform", "org.freedesktop.Platform.GL.default"}, game.id)
 
     def assert_same(self, original, lan, game_id, where):
         self.assertIs(type(lan), type(original), where)
@@ -217,6 +241,21 @@ class ValidationTest(unittest.TestCase):
         self.assert_error(RUNTIME.replace('version = "14.44.35211"', ""), "missing version")
         self.assert_error(RUNTIME.replace('"14.44.35211"', '"latest"'), "version must look like")
         self.assert_error(RUNTIME.replace(f'"{SHA}"', '"abc"'), "sha256 must be 64")
+
+    def test_linux_bundle_and_runtimes(self):
+        runtime = (f'[runtimes.platform]\ntype = "flatpak-runtime"\nname = "Runtime"\n'
+                   f'ref = "org.freedesktop.Platform//26.08"\nurl = "/share/p.flatpak"\nsha256 = "{SHA}"\n')
+        bundle = f'bundle = {{ url = "/share/stk.flatpak", sha256 = "{SHA}" }}\nrequires = ["platform"]\n'
+        game = parse(runtime + VALID_GAME + bundle)[0]
+        self.assertEqual(game.linux.bundle_url, "/share/stk.flatpak")
+        self.assertEqual(game.linux.requires[0].ref, "org.freedesktop.Platform//26.08")
+        self.assertIsNone(parse(VALID_GAME)[0].linux.bundle_url)
+        self.assert_error(runtime.replace("//26.08", ""), "ref must look like")
+        self.assert_error(runtime + VALID_GAME + bundle.replace(f', sha256 = "{SHA}"', ""), "bundle: missing sha256")
+
+    def test_runtime_must_fit_the_platform(self):
+        self.assert_error(RUNTIME + VALID_GAME + 'requires = ["vcredist_x64"]\n',
+                          "runtime 'vcredist_x64' is a vcredist-x64 runtime, not for linux")
 
     def test_reserved_id(self):
         self.assert_error(VALID_GAME.replace("[stk", "[all"), "not 'all'")

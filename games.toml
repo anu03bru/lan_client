@@ -17,8 +17,11 @@
 #     optional: commit = "..."                          Pins the Flathub build (x86_64). Get it from
 #                                                       flatpak remote-info --log flathub <app_id>, newest commit
 #                                                       whose Version matches `version`
+#     optional: bundle = { url, sha256 }                games-lan.toml only: install this .flatpak file (built by
+#                                                       scripts/build_flatpak_bundles.py) instead of using Flathub
 #   type = "flatpak-bundle"   app_id, url, sha256       A .flatpak file
 #   optional: data = [...]                              Extra folders deleted on uninstall
+#   optional: requires = ["<runtime id>", ...]          games-lan.toml only: flatpak-runtime bundles installed first
 #   optional: [<id>.linux.overrides] env = {...}, filesystem = [...]   Flatpak permissions
 #
 # [<id>.windows]
@@ -43,12 +46,15 @@
 #   Extra ZIP downloads. Files matching `extract` (e.g. "*.wad") are copied into the dest folder.
 #   The dest folders are deleted on uninstall. macos_dest is only needed when the game has a macos table.
 #
-# [runtimes.<runtime id>]  (Windows only, so "runtimes" can't be a game id)
+# [runtimes.<runtime id>]  ("runtimes" can't be a game id)
 #   type = "vcredist-x64"   name, url, sha256, version  Microsoft Visual C++ Redistributable (x64). Installed when
 #                                                       it's missing or older than `version` (from the registry),
 #                                                       never removed: other programs use it too. Pin a build from
 #                                                       https://aka.ms/vs/17/release/vc_redist.x64.exe (it redirects
 #                                                       to a fixed URL); version = the exe's file version
+#   type = "flatpak-runtime" name, ref, url, sha256     games-lan.toml only: a Flatpak runtime bundle, e.g.
+#                                                       ref = "org.freedesktop.Platform//26.08". Installed when no
+#                                                       build of that ref is installed yet
 #
 # Paths: ~ is your home folder. On Windows %APPDATA%, %LOCALAPPDATA%, %USERPROFILE%, %DOCUMENTS% and %DESKTOP%
 # can be used. Use / as separator on all systems.

@@ -20,8 +20,9 @@ At the LAN party the internet connection is slow, so the game files are on a fil
 
 Every file is checked against its sha256 checksum, exactly as for internet downloads.
 
-**Linux:** Blobby Volley, 0 A.D., SuperTuxKart and AssaultCube come from Flathub and still need the internet. Only
-Doom comes from the share.
+**Linux:** all games and their Flatpak runtimes come from the share too, no Flathub needed. Only PCs with the
+proprietary NVIDIA driver also download its matching Flatpak graphics driver from Flathub (about 300 MB), because it
+must fit the installed driver version exactly.
 
 | Problem | What to do |
 |---|---|
@@ -33,12 +34,16 @@ Doom comes from the share.
 1. **Fill the share** at home, where the internet is fast:
    `python3 scripts/fill_share.py <folder>`.
    It downloads every file from `games.toml` into `<folder>/<game id>/<file name>` (the Visual C++ Redistributable for Windows into `<folder>/runtimes/`) and checks its sha256. You can run
-   it again: files that are already there with the right checksum are skipped. Copy the contents of `<folder>` to
-   the root of the share.
-2. **Set the share address**: edit the `[share]` table at the top of `games-lan.toml`, one path per OS. Use `/` as
+   it again: files that are already there with the right checksum are skipped.
+2. **Build the Linux bundles** on a Linux PC that has the games installed with `./lan.py install` (so at the pinned
+   builds): `python3 scripts/build_flatpak_bundles.py <folder> --write`. It exports the Flathub games and their
+   runtimes from that PC as `.flatpak` files into the same folder, and writes their sha256 into `games-lan.toml`
+   (commit that change). It refuses a game that is installed at another build than `games.toml` pins. Then copy the
+   contents of `<folder>` to the root of the share.
+3. **Set the share address**: edit the `[share]` table at the top of `games-lan.toml`, one path per OS. Use `/` as
    separator, also for Windows (`//FILESERVER/lanparty` = `\\FILESERVER\lanparty`). To find the Linux path, open the
    share in the file manager and run `ls /run/user/$(id -u)/gvfs/`.
-3. **Test it** on one PC per OS before the party: `lan.py --games games-lan.toml install doom`.
+4. **Test it** on one PC per OS before the party: `lan.py --games games-lan.toml install doom`.
 
 `games-lan.toml` must stay a copy of `games.toml` with only the URLs changed. If you change `games.toml`, change
 `games-lan.toml` the same way. `python3 -m unittest` fails when the two differ.
