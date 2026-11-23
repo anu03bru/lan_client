@@ -125,5 +125,22 @@ There is no server list.
 The host uses **Online → Local network → Create server**. The others join through **Online → Local network**.
 If the server doesn't show up, see [troubleshooting](troubleshooting.md#supertuxkart-no-server-found).
 
+Keyboard controls:
+
+| Action | Key |
+|---|---|
+| Accelerate | ↑ |
+| Brake / reverse | ↓ |
+| Steer | ← / → |
+| Use item | Space |
+| Nitro | N |
+| Skid / drift | V |
+| Look back | B |
+| Rescue (back onto the track) | Backspace (Mac: **delete**) |
+| Pause / menu | Esc |
+
+In menus: arrow keys to move, Enter to select, Esc to go back. Change the keys under **Options → Controls**.
+Gamepads work too and show up there.
+
 ### AssaultCube
 **Multiplayer → Join a LAN server**. Or open the console and type `/connect <SERVER-IP> 28763`.
