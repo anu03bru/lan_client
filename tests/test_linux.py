@@ -301,7 +301,7 @@ class LinuxBundleTest(unittest.TestCase):
     def test_runtimes_then_game_from_the_share_without_flathub(self, download):
         linux, runner, _output, flatpak = self.install()
         installs = [call for call in runner.joined() if call.startswith("flatpak install")]
-        self.assertEqual([call.split()[-1].rsplit("/", 1)[-1] for call in installs], list(self.BUNDLES))
+        self.assertEqual([Path(call.split()[-1]).name for call in installs], list(self.BUNDLES))
         self.assertIn("--reinstall", installs[-1])
         # The runtimes came from bundles, so flatpak must not go to Flathub for dependencies (fails offline)
         self.assertIn("--no-deps", installs[-1])
