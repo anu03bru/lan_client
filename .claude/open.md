@@ -60,9 +60,12 @@ exe names and app architectures, and which folders a game creates when it starts
 - [ ] **Windows ZIP games after a switch.** `.lanparty-version` stores the download URL, so a PC that installed
       Odamex or Blobby from the internet treats a reinstall from the share as a new version and recreates the
       install folder once.
-- [ ] **Flathub games on the share (Linux).** Blobby Volley, 0 A.D., SuperTuxKart and AssaultCube still come from
-      Flathub. Bundle them (with their runtimes) for the share, e.g. with `flatpak create-usb` at the pinned commits,
-      and teach `lan.py` to install from there. Then update the Linux note in `docs/lan-share.md`.
+- [ ] **Flatpak bundles (Linux).** `games-lan.toml` installs the Flathub games and the runtimes 25.08/26.08 from
+      bundles built by `scripts/build_flatpak_bundles.py`. Check on a party PC without them: no Flathub access,
+      the games start, `flatpak info --show-commit` matches the pinned commits.
+- [ ] **NVIDIA (Linux).** With the proprietary driver, `lan.py` installs `org.freedesktop.Platform.GL.nvidia-<version>`
+      from Flathub after bundle installs (`_install_nvidia_gl` in `lanparty/linux.py`). Check on a PC with an NVIDIA
+      card that the step finds the version and the games use the GPU (not llvmpipe).
 - [ ] **Thursday 2026-11-26: make games-lan.toml the default.** Set `GAMES_FILE` in `lanparty/cli.py` to
       `games-lan.toml`, so players need no `--games`. Update the commands in `README.md` and `docs/lan-share.md`
       (`--games games.toml` then means "from the internet"). Revert this after the party.

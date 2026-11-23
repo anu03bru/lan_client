@@ -8,7 +8,7 @@ import re
 import tempfile
 from pathlib import Path
 
-from .config import Game, LinuxSpec
+from .config import Game, LinuxSpec, Runtime
 from .download import (
     download, download_hint, expand_path, expand_text, extract_matching, file_name_from_url, remove_path,
 )
@@ -22,16 +22,24 @@ UFW_RULE_NUMBER = re.compile(r"^\[\s*(\d+)\]")
 OLD_UFW_COMMENTS = {"SuperTuxKart": ("SuperTuxKart server",)}
 # reply_ports are only allowed from these, so the rules don't open anything to the internet
 PRIVATE_NETWORKS = ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
+# The proprietary NVIDIA driver's version. Flatpak games need a matching GL extension from Flathub; Flathub installs
+# it with the game, but not when the game comes from a bundle, so lan.py does it then.
+NVIDIA_VERSION_FILE = Path("/sys/module/nvidia/version")
+NVIDIA_GL_BRANCH = "1.4"
+NVIDIA_VERSION_PATTERN = re.compile(r"^\d+(\.\d+)+$")
 
 
 class Linux:
     name = "Linux"
 
-    def __init__(self, runner: Runner, steps: Steps, home: Path | None = None, machine: str | None = None) -> None:
+    def __init__(self, runner: Runner, steps: Steps, home: Path | None = None, machine: str | None = None,
+                 nvidia_version_file: Path = NVIDIA_VERSION_FILE) -> None:
         self.runner = runner
         self.steps = steps
         self.home = home or Path.home()
         self.machine = machine or platform.machine()
+        self.nvidia_version_file = nvidia_version_file
+        self._nvidia_checked = False
 
     def check_ready(self) -> None:
         if os.geteuid() == 0:
@@ -58,16 +66,37 @@ class Linux:
         assert spec is not None
         steps = self.steps
         steps.run("Check flatpak", "Install it with: sudo pacman -S flatpak", self._require, "flatpak")
-        steps.run(
-            "Add Flathub remote",
-            "Could not add Flathub. Check the internet connection.",
-            self.runner.run,
-            ["flatpak", "remote-add", "--user", "--if-not-exists", "flathub", FLATHUB_URL],
-        )
+        from_flathub = spec.type == "flatpak" and spec.bundle_url is None
+        if from_flathub:
+            # Downloads Flathub's repo file, so only when the game really comes from Flathub (not at the LAN party)
+            steps.run(
+                "Add Flathub remote",
+                "Could not add Flathub. Check the internet connection.",
+                self.runner.run,
+                self._add_flathub_command(),
+            )
 
-        with tempfile.TemporaryDirectory(prefix="lanparty-") as temp_name:
+        # Not /tmp: on many distributions (Arch, CachyOS, Fedora) it is a RAM disk, too small for 0 A.D.
+        download_parent = self.home / ".cache"
+        download_parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="lanparty-", dir=download_parent) as temp_name:
             temp_dir = Path(temp_name)
-            if spec.type == "flatpak":
+            # Runtime bundles first: a game bundle whose runtime is missing would fetch it from Flathub
+            for runtime in spec.requires:
+                steps.run(
+                    f"Install {runtime.name}",
+                    f"{download_hint(runtime.url)} Without the share: flatpak install --user flathub {runtime.ref}",
+                    self._install_runtime_bundle, runtime, temp_dir,
+                )
+            if not from_flathub:
+                self._install_nvidia_gl()
+            if spec.type == "flatpak" and spec.bundle_url:
+                steps.run(
+                    f"Install {game.name}",
+                    f"{download_hint(spec.bundle_url)} Without the share: flatpak install --user flathub {spec.app_id}",
+                    self._install_app_bundle, spec, temp_dir,
+                )
+            elif spec.type == "flatpak":
                 steps.run(
                     f"Install {game.name}",
                     f"Try running: flatpak install --user flathub {spec.app_id}",
@@ -87,7 +116,7 @@ class Linux:
                     f"Install {game.name}",
                     f"Try running: flatpak install --user {bundle_path}",
                     self.runner.run,
-                    ["flatpak", "install", "--user", "-y", "--reinstall", str(bundle_path)],
+                    self._bundle_install_command(spec, bundle_path),
                 )
             steps.run(
                 "Verify installation",
@@ -126,6 +155,69 @@ class Linux:
                 f"(also with 10.0.0.0/8 and 172.16.0.0/12 instead of 192.168.0.0/16)",
                 self._allow_reply_ports, game,
             )
+
+    def _install_runtime_bundle(self, runtime: Runtime, temp_dir: Path) -> str | None:
+        # Any build of the runtime branch works, also one from Flathub or the system installation
+        if self._ref_installed(runtime.ref):
+            return "already installed, nothing to do"
+        bundle_path = temp_dir / file_name_from_url(runtime.url)
+        self.steps.info(f"Downloading {file_name_from_url(runtime.url)}")
+        download(runtime.url, bundle_path, runtime.sha256)
+        self.steps.info("Installing")
+        self.runner.run(["flatpak", "install", "--user", "-y", str(bundle_path)])
+        return None
+
+    def _install_app_bundle(self, spec: LinuxSpec, temp_dir: Path) -> str | None:
+        """Installs the game from its bundle on the LAN share. The bundle holds the pinned commit."""
+        if spec.commit and self._installed_commit(spec.app_id) == spec.commit:
+            return "the pinned build is already installed, nothing to do"
+        bundle_path = temp_dir / file_name_from_url(spec.bundle_url)
+        self.steps.info(f"Downloading {file_name_from_url(spec.bundle_url)}")
+        download(spec.bundle_url, bundle_path, spec.bundle_sha256)
+        self.steps.info("Installing")
+        self.runner.run(self._bundle_install_command(spec, bundle_path))
+        installed_commit = self._installed_commit(spec.app_id)
+        if spec.commit and installed_commit != spec.commit:
+            self.steps.warn(f"The bundle has build {installed_commit[:12]}, games.toml pins {spec.commit[:12]}. "
+                            "Tell the organizer.")
+            self.steps.warnings.append("Check version")
+        return None
+
+    def _bundle_install_command(self, spec: LinuxSpec, bundle_path: Path) -> list[str]:
+        # --reinstall also replaces a build from Flathub.
+        # A bundle names Flathub as the source of its runtime, and flatpak loads that file even when the runtime is
+        # installed, which fails without internet. With `requires`, the runtimes came from bundles just before, so
+        # dependencies are skipped. Without (games.toml), Flathub still provides the runtime.
+        no_deps = ["--no-deps"] if spec.requires else []
+        return ["flatpak", "install", "--user", "-y", "--reinstall", *no_deps, str(bundle_path)]
+
+    def _install_nvidia_gl(self) -> None:
+        """With the proprietary NVIDIA driver, games need the matching Flatpak GL extension, or they fall back to
+        software rendering. It must match the driver exactly, so it can't be on the share: it comes from Flathub."""
+        if self._nvidia_checked:
+            return
+        self._nvidia_checked = True
+        try:
+            version = self.nvidia_version_file.read_text().strip()
+        except OSError:
+            return  # no proprietary NVIDIA driver loaded
+        if not NVIDIA_VERSION_PATTERN.match(version):
+            self.steps.warn(f"Unexpected NVIDIA driver version {version!r}, skipped the Flatpak graphics driver.")
+            return
+        ref = f"org.freedesktop.Platform.GL.nvidia-{version.replace('.', '-')}//{NVIDIA_GL_BRANCH}"
+        self.steps.attempt(
+            f"Install the NVIDIA graphics driver for Flatpak ({version})",
+            f"Needs the internet (about 300 MB). Run: flatpak install --user flathub {ref} "
+            "Without it, games run with slow software graphics.",
+            self._install_nvidia_ref, ref,
+        )
+
+    def _install_nvidia_ref(self, ref: str) -> str | None:
+        if self._ref_installed(ref):
+            return "already installed, nothing to do"
+        self.runner.run(self._add_flathub_command())
+        self.runner.run(["flatpak", "install", "--user", "-y", "flathub", ref])
+        return None
 
     def _pin_commit(self, game: Game, spec: LinuxSpec) -> None:
         # Flathub always installs its newest build. Going to the pinned commit keeps every Linux PC on the same build
@@ -194,12 +286,8 @@ class Linux:
             f"Try running: flatpak uninstall --user --delete-data {spec.app_id}",
             self._remove_app, spec.app_id,
         )
-        if spec.type == "flatpak-bundle":
-            steps.attempt(
-                "Remove Flatpak remote of the bundle",
-                "List remotes with: flatpak remote-list --user, then: flatpak remote-delete --user <name>",
-                self._remove_bundle_remotes, spec.app_id,
-            )
+        # Installing a .flatpak file adds a hidden remote like "odamex-origin". flatpak deletes it by itself when
+        # the last app or runtime from it is uninstalled, so there is nothing to clean up here.
         for folder in self._unique_paths([*spec.data, *(asset.linux_dest for asset in game.assets)]):
             steps.attempt(f"Remove {folder}", f"Delete it manually: rm -rf {folder}", remove_path, folder)
         if game.ports or game.reply_ports:
@@ -236,17 +324,6 @@ class Linux:
         remove_path(self.home / ".var" / "app" / app_id)
         return note
 
-    def _remove_bundle_remotes(self, app_id: str) -> str | None:
-        if not self.runner.exists("flatpak"):
-            return "flatpak not installed, nothing to do"
-        # Installing a .flatpak file can add a remote named after the app, e.g. "odamex-origin"
-        short_name = app_id.rsplit(".", 1)[-1].lower()
-        result = self.runner.run(["flatpak", "remote-list", "--user", "--columns=name"], capture=True)
-        remotes = [line.strip() for line in result.stdout.splitlines() if short_name in line.strip().lower()]
-        for remote in remotes:
-            self.runner.run(["flatpak", "remote-delete", "--user", "--force", remote])
-        return f"deleted {', '.join(remotes)}" if remotes else "nothing to do"
-
     def _close_ports(self, game_name: str) -> str:
         """Deletes every ufw rule whose comment is the game name (or an old comment of it). Other rules stay."""
         reason = self._ufw_unavailable()
@@ -276,6 +353,17 @@ class Linux:
     def _require(self, command: str) -> None:
         if not self.runner.exists(command):
             raise FileNotFoundError(f"{command} not found")
+
+    def _add_flathub_command(self) -> list[str]:
+        return ["flatpak", "remote-add", "--user", "--if-not-exists", "flathub", FLATHUB_URL]
+
+    def _ref_installed(self, ref: str) -> bool:
+        """In the user or the system installation; ref like "org.freedesktop.Platform//26.08"."""
+        return self.runner.run(["flatpak", "info", ref], capture=True, check=False).returncode == 0
+
+    def _installed_commit(self, app_id: str) -> str:
+        result = self.runner.run(["flatpak", "info", "--user", "--show-commit", app_id], capture=True, check=False)
+        return result.stdout.strip() if result.returncode == 0 else ""
 
     def _require_installed(self, app_id: str) -> None:
         if self._flatpak_info(app_id) is None:
