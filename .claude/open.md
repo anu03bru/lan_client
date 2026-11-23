@@ -18,6 +18,10 @@ exe names and app architectures, and which folders a game creates when it starts
       older than 14.44.35211 (`[runtimes.vcredist_x64]` in `games.toml`). Check on a PC without it: the step installs
       it silently, 0 A.D. starts, and a second install says "installed, nothing to do". Also note which DLL was
       missing. The e2e runners already have it, so they only show the "nothing to do" path.
+- [ ] **Console freeze / QuickEdit (#13).** `Windows.check_ready` turns QuickEdit off (`disable_quick_edit` in
+      `lanparty/windows.py`). Check: click into the console during an install, it must keep going without Enter.
+      Also check that the elevated window is a classic console (conhost) even when Windows Terminal is the default
+      terminal, and that `still installing... m:ss` updates in place there.
 - [ ] **AssaultCube: user data folder.** `games.toml` → `[assaultcube.windows] data` assumes
       `Documents/My Games/AssaultCube`.
 

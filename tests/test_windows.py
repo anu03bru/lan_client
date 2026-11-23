@@ -189,6 +189,13 @@ class NsisInstallTest(unittest.TestCase):
         self.assertTrue(runner.calls[0][0].endswith("stk.exe"))
         self.assertNotIn("Remove the installed version", output.getvalue())
 
+    def test_elapsed_time_is_shown_while_the_installer_runs(self, _download):
+        windows, _runner, output = make_windows(self.root)
+        windows.install(STK)
+        text = output.getvalue()
+        self.assertIn("This can take several minutes", text)
+        self.assertIn("\r    still installing... 0:05\r    still installing... 1:35\nOK", text)
+
     def test_installer_has_a_time_limit(self, _download):
         def respond(args):
             if args[0].endswith("stk.exe"):

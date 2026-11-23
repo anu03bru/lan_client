@@ -1,4 +1,5 @@
 import hashlib
+import io
 import tempfile
 import unittest
 import zipfile
@@ -46,6 +47,15 @@ class DownloadHelperTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 download(str(source), target, "0" * 64)
         self.assertFalse(target.exists())
+
+    def test_download_shows_percentage(self):
+        source = self.root / "big.bin"
+        data = b"x" * 3_000_000  # three 1 MB chunks
+        source.write_bytes(data)
+        with mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
+            download(str(source), self.root / "copy.bin", hashlib.sha256(data).hexdigest())
+        self.assertIn("1 / 3 MB (34%)", stderr.getvalue())
+        self.assertIn("3 / 3 MB (100%)", stderr.getvalue())
 
     def test_download_hint(self):
         self.assertIn("internet connection", download_hint("https://x/a.zip"))

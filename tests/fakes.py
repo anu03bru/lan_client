@@ -20,9 +20,13 @@ class FakeRunner:
         self.calls: list[list[str]] = []
         self.timeouts: list[float | None] = []
 
-    def run(self, args, *, capture=False, check=True, timeout=None):
+    def run(self, args, *, capture=False, check=True, timeout=None, on_wait=None):
         self.calls.append(list(args))
         self.timeouts.append(timeout)
+        if on_wait is not None:
+            # Like a command that runs for a while
+            on_wait(5)
+            on_wait(95)
         returncode, stdout = self.respond(list(args))
         if check and returncode != 0:
             raise RuntimeError(f"{args} failed")

@@ -40,6 +40,9 @@ VERSION_MARKER = ".lanparty-version"
 VCREDIST_X64_KEY = r"SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64"
 # Always the newest build, so it can't be pinned in games.toml, but it's the right link for a manual install
 VCREDIST_X64_LATEST_URL = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+# Turned off in the console, see disable_quick_edit
+ENABLE_QUICK_EDIT_MODE = 0x0040
+ENABLE_EXTENDED_FLAGS = 0x0080
 # Exit codes of the Visual C++ Redistributable installer that aren't errors
 VCREDIST_RESTART_NEEDED = 3010
 VCREDIST_NEWER_INSTALLED = 1638
@@ -74,6 +77,7 @@ class Windows:
     def check_ready(self) -> None:
         # Colors: turns on ANSI escape codes in the classic Windows console
         os.system("")
+        disable_quick_edit()
 
     def needs_admin(self) -> bool:
         return not is_admin()
@@ -177,9 +181,7 @@ class Windows:
         installer_path = temp_dir / file_name_from_url(runtime.url)
         self.steps.info(f"Downloading {file_name_from_url(runtime.url)}")
         download(runtime.url, installer_path, runtime.sha256)
-        self.steps.info("Running the installer")
-        result = self.runner.run([str(installer_path), "/install", "/quiet", "/norestart"], check=False,
-                                 timeout=INSTALL_TIMEOUT_SECONDS)
+        result = self._run_silent_installer([str(installer_path), "/install", "/quiet", "/norestart"])
         if result.returncode == VCREDIST_NEWER_INSTALLED:
             return "a newer version is already installed"
         if result.returncode == VCREDIST_RESTART_NEEDED:
@@ -196,9 +198,18 @@ class Windows:
         raise ValueError(f"Unknown runtime type {runtime.type!r}")
 
     def _run_installer(self, installer_path: Path) -> None:
-        result = self.runner.run([str(installer_path), "/S"], check=False, timeout=INSTALL_TIMEOUT_SECONDS)
+        result = self._run_silent_installer([str(installer_path), "/S"])
         if result.returncode != 0:
             raise RuntimeError(f"Installer exited with code {result.returncode}")
+
+    def _run_silent_installer(self, args: list[str]) -> subprocess.CompletedProcess:
+        """Silent installers print nothing and show no window, so the elapsed time shows that it's still working."""
+        self.steps.info("    This can take several minutes, the installer runs in the background.")
+        try:
+            return self.runner.run(args, check=False, timeout=INSTALL_TIMEOUT_SECONDS,
+                                   on_wait=lambda seconds: self.steps.waiting("still installing", seconds))
+        finally:
+            self.steps.end_waiting()
 
     def _create_shortcut(self, spec: WindowsSpec, name: str, target: str) -> None:
         install_dir = self._path(spec.install_dir)
@@ -365,6 +376,25 @@ def uninstaller_path(uninstall_string: str) -> str:
 def ps_quote(text: str) -> str:
     """Quotes a string for PowerShell. Single quotes are literal, so nothing inside gets expanded."""
     return "'" + text.replace("'", "''") + "'"
+
+
+def disable_quick_edit() -> None:
+    """Turns off QuickEdit in the classic console (conhost) while lan.py runs. With QuickEdit, a click into the
+    window starts a text selection, and Windows pauses lan.py at its next output until Enter or Esc is pressed,
+    so the install looks frozen. The old mode comes back when lan.py exits."""
+    if sys.platform != "win32":
+        return
+    import atexit
+    import ctypes
+
+    kernel32 = ctypes.windll.kernel32
+    console_input = kernel32.GetStdHandle(-10)  # STD_INPUT_HANDLE
+    mode = ctypes.c_uint32()
+    if not kernel32.GetConsoleMode(console_input, ctypes.byref(mode)):
+        return  # no console, e.g. input redirected
+    new_mode = (mode.value & ~ENABLE_QUICK_EDIT_MODE) | ENABLE_EXTENDED_FLAGS
+    if new_mode != mode.value and kernel32.SetConsoleMode(console_input, new_mode):
+        atexit.register(kernel32.SetConsoleMode, console_input, mode.value)
 
 
 def is_admin() -> bool:
