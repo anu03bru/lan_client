@@ -21,6 +21,13 @@ class Shortcut:
 
 
 @dataclass(frozen=True)
+class Setting:
+    """Lines `key = "value"` set in a game's config file after the install, e.g. 0 A.D.'s user.cfg."""
+    file: str
+    values: dict[str, str]
+
+
+@dataclass(frozen=True)
 class Asset:
     url: str
     sha256: str
@@ -70,6 +77,7 @@ class WindowsSpec:
     shortcuts: tuple[Shortcut, ...] = ()
     data: tuple[str, ...] = ()
     requires: tuple[Runtime, ...] = ()
+    settings: tuple[Setting, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -101,6 +109,7 @@ GAME_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
 PORT_PATTERN = re.compile(r"^\d{1,5}/(udp|tcp)$")
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 VERSION_PATTERN = re.compile(r"^\d+(\.\d+){1,3}$")
+SETTING_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_.]+$")
 FLATPAK_REF_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+//[A-Za-z0-9_.-]+$")
 
 # type -> (required keys, optional keys)
@@ -109,8 +118,8 @@ LINUX_TYPES = {
     "flatpak-bundle": ({"type", "app_id", "url", "sha256"}, {"overrides", "data", "requires"}),
 }
 WINDOWS_TYPES = {
-    "nsis": ({"type", "url", "sha256", "uninstall_name"}, {"data", "requires"}),
-    "zip": ({"type", "url", "sha256", "install_dir"}, {"shortcuts", "data", "requires"}),
+    "nsis": ({"type", "url", "sha256", "uninstall_name"}, {"data", "requires", "settings"}),
+    "zip": ({"type", "url", "sha256", "install_dir"}, {"shortcuts", "data", "requires", "settings"}),
 }
 MACOS_TYPES = {
     "dmg": ({"type", "url", "sha256", "apps"}, {"arm64", "data"}),
@@ -291,6 +300,7 @@ def _parse_windows(where: str, table: Any, runtimes: dict[str, Runtime]) -> Wind
         shortcuts=tuple(Shortcut(name=str(item["name"]), target=str(item["target"])) for item in shortcuts),
         data=_strings(where, table, "data"),
         requires=_requires(where, table, runtimes, "windows"),
+        settings=_settings(where, table),
     )
 
 
@@ -327,6 +337,25 @@ def _parse_asset(where: str, table: Any) -> Asset:
         windows_dest=_string(where, table, "windows_dest"),
         macos_dest=_string(where, table, "macos_dest"),
     )
+
+
+def _settings(where: str, table: dict) -> tuple[Setting, ...]:
+    settings = table.get("settings", [])
+    if not isinstance(settings, list):
+        raise ConfigError(f"{where}: settings must be a list of {{ file, values }}")
+    parsed = []
+    for setting in settings:
+        _check_keys(f"{where} settings", setting, {"file", "values"}, set())
+        values = setting["values"]
+        if not isinstance(values, dict) or not values:
+            raise ConfigError(f"{where} settings: values must be a table like {{ gpuskinning = \"false\" }}")
+        for key, value in values.items():
+            if not SETTING_KEY_PATTERN.match(key):
+                raise ConfigError(f"{where} settings: {key!r} is not a valid setting name")
+            if not isinstance(value, str) or '"' in value or "\n" in value:
+                raise ConfigError(f"{where} settings: {key} must be a string without quotes or line breaks")
+        parsed.append(Setting(file=_string(f"{where} settings", setting, "file"), values=dict(values)))
+    return tuple(parsed)
 
 
 def _requires(where: str, table: dict, runtimes: dict[str, Runtime], platform: str) -> tuple[Runtime, ...]:

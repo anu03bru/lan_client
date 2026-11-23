@@ -22,6 +22,10 @@ exe names and app architectures, and which folders a game creates when it starts
       `lanparty/windows.py`). Check: click into the console during an install, it must keep going without Enter.
       Also check that the elevated window is a classic console (conhost) even when Windows Terminal is the default
       terminal, and that `still installing... m:ss` updates in place there.
+- [ ] **0 A.D.: GPU skinning off on all Windows PCs (#14).** `[0ad.windows] settings` writes
+      `gpuskinning = "false"` into `user.cfg`. Measure the frame rate with many units on a slow party PC (CPU
+      skinning costs some). After step 3 in #14 (which GPUs are affected), decide whether it should only apply to
+      some GPUs.
 - [ ] **AssaultCube: user data folder.** `games.toml` → `[assaultcube.windows] data` assumes
       `Documents/My Games/AssaultCube`.
 

@@ -70,6 +70,7 @@ class GamesFileTest(unittest.TestCase):
         self.assertIsNotNone(games["0ad"].macos.arm64_url)
         self.assertTrue(all(asset.macos_dest for asset in games["doom"].assets))
         self.assertEqual([runtime.id for runtime in games["0ad"].windows.requires], ["vcredist_x64"])
+        self.assertEqual(games["0ad"].windows.settings[0].values, {"gpuskinning": "false"})
         self.assertEqual(games["0ad"].windows.requires[0].type, "vcredist-x64")
 
 
@@ -252,6 +253,17 @@ class ValidationTest(unittest.TestCase):
         self.assertIsNone(parse(VALID_GAME)[0].linux.bundle_url)
         self.assert_error(runtime.replace("//26.08", ""), "ref must look like")
         self.assert_error(runtime + VALID_GAME + bundle.replace(f', sha256 = "{SHA}"', ""), "bundle: missing sha256")
+
+    def test_windows_settings(self):
+        setting = '\nsettings = [{ file = "%APPDATA%/x/user.cfg", values = { gpuskinning = "false" } }]\n'
+        game = parse(WINDOWS_GAME + setting)[0]
+        self.assertEqual(game.windows.settings[0].file, "%APPDATA%/x/user.cfg")
+        self.assertEqual(game.windows.settings[0].values, {"gpuskinning": "false"})
+        self.assert_error(WINDOWS_GAME + setting.replace('"false"', '\'"false"\''), "without quotes")
+        self.assert_error(WINDOWS_GAME + setting.replace("gpuskinning", '"gpu skinning"'), "not a valid setting name")
+        self.assert_error(WINDOWS_GAME + setting.replace("values = { gpuskinning = \"false\" }", "values = {}"),
+                          "values must be a table")
+        self.assert_error(WINDOWS_GAME + setting.replace("file =", "path ="), "missing file")
 
     def test_runtime_must_fit_the_platform(self):
         self.assert_error(RUNTIME + VALID_GAME + 'requires = ["vcredist_x64"]\n',

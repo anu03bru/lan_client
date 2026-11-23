@@ -33,6 +33,9 @@
 #   optional: shortcuts = [{ name, target }]            Desktop shortcuts; target is an .exe inside install_dir
 #   optional: data = [...]                              User data folders deleted on uninstall
 #   optional: requires = ["<runtime id>", ...]          Runtimes from [runtimes] installed before the game
+#   optional: settings = [{ file, values = { key = "value", ... } }]
+#                                                       Lines `key = "value"` set in a config file after the
+#                                                       install (e.g. 0 A.D.'s user.cfg). Other lines are kept
 #
 # [<id>.macos]
 #   type = "dmg"    url, sha256, apps                   Disk image
@@ -162,6 +165,9 @@ sha256 = "9b5e1a16d4e0df9c84e052f56fb75da69518d5634c88d2b38db69baee63c16a1"
 uninstall_name = "0 A.D.*"
 data = ["%APPDATA%/0ad", "%LOCALAPPDATA%/0ad", "%DOCUMENTS%/My Games/0ad"]
 requires = ["vcredist_x64"]  # VCRUNTIME140.dll etc., not on a fresh Windows and not in the 0 A.D. installer
+# GPU skinning warps moving units on old Intel GPUs / drivers (HD Graphics 4600, driver from 2016, issue #14).
+# Skinning on the CPU works everywhere. Players can turn it back on under Options -> Graphics.
+settings = [{ file = "%APPDATA%/0ad/config/user.cfg", values = { gpuskinning = "false" } }]
 
 [0ad.macos]
 type = "dmg"
