@@ -121,6 +121,9 @@ There is no server list.
 2. The others choose **Multiplayer → Join Game** and enter the host's **IP address** and port **20595**.
 3. Wait in the lobby until the host starts the game.
 
+On Windows, `lan.py` turns off **GPU skinning**, because on older Intel graphics it makes moving units warp. Units
+then look right everywhere. With a good graphics card you can turn it back on under **Options → Graphics**.
+
 ### SuperTuxKart
 The host uses **Online → Local network → Create server**. The others join through **Online → Local network**.
 If the server doesn't show up, see [troubleshooting](troubleshooting.md#supertuxkart-no-server-found).

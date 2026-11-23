@@ -6,7 +6,7 @@ from unittest import mock
 from lanparty.runner import CommandError
 from lanparty.steps import StepFailed
 from lanparty.windows import (INSTALL_TIMEOUT_SECONDS, VERSION_MARKER, UninstallEntry, Windows, firewall_rules,
-                              ps_quote, remove_other_version, uninstaller_path, version_tuple)
+                              ps_quote, remove_other_version, set_config_values, uninstaller_path, version_tuple)
 from tests.fakes import FakeRunner, game_from_toml, quiet_steps
 
 STK = game_from_toml("""
@@ -48,6 +48,7 @@ url = "https://example.invalid/0ad.exe"
 sha256 = "a1260ebb73dd9da13ec3e37f526f29e494b3b66c00c05fd70767b30a4497d95e"
 uninstall_name = "0 A.D.*"
 requires = ["vcredist_x64"]
+settings = [{ file = "%APPDATA%/0ad/config/user.cfg", values = { gpuskinning = "false" } }]
 """)
 
 
@@ -325,3 +326,44 @@ class RuntimeTest(unittest.TestCase):
         windows, runner, _output = make_windows(self.root, FakeRegistry([], vcredist=None))
         windows.uninstall(ZERO_AD)
         self.assertFalse(any("VC_redist" in " ".join(call) for call in runner.calls))
+
+
+class SettingsTest(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.cfg = self.root / "0ad" / "config" / "user.cfg"
+
+    def test_creates_the_file_when_the_game_has_not_written_it(self):
+        self.assertIsNone(set_config_values(self.cfg, {"gpuskinning": "false"}))
+        self.assertEqual(self.cfg.read_text(encoding="utf-8"), 'gpuskinning = "false"\n')
+
+    def test_replaces_the_value_and_keeps_other_lines(self):
+        self.cfg.parent.mkdir(parents=True)
+        self.cfg.write_text('gpuskinning = "true"\nplayername.multiplayer = "Admin"\n', encoding="utf-8")
+        set_config_values(self.cfg, {"gpuskinning": "false"})
+        self.assertEqual(self.cfg.read_text(encoding="utf-8").splitlines(),
+                         ['playername.multiplayer = "Admin"', 'gpuskinning = "false"'])
+
+    def test_already_set_is_left_alone(self):
+        self.cfg.parent.mkdir(parents=True)
+        # 0 A.D. sorts user.cfg when it exits, so the line may be anywhere
+        original = 'gpuskinning = "false"\nplayername.multiplayer = "Admin"\n'
+        self.cfg.write_text(original, encoding="utf-8")
+        self.assertEqual(set_config_values(self.cfg, {"gpuskinning": "false"}), "already set, nothing to do")
+        self.assertEqual(self.cfg.read_text(encoding="utf-8"), original)
+
+    def test_similar_names_are_not_touched(self):
+        self.cfg.parent.mkdir(parents=True)
+        self.cfg.write_text('gpuskinning.extra = "1"\n', encoding="utf-8")
+        set_config_values(self.cfg, {"gpuskinning": "false"})
+        self.assertIn('gpuskinning.extra = "1"', self.cfg.read_text(encoding="utf-8"))
+
+    @mock.patch("lanparty.windows.download")
+    def test_install_sets_the_value_in_appdata(self, _download):
+        windows, _runner, output = make_windows(self.root, FakeRegistry([], vcredist=(14, 44, 35211, 0)))
+        windows.install(ZERO_AD)
+        cfg = self.root / "appdata" / "0ad" / "config" / "user.cfg"
+        self.assertEqual(cfg.read_text(encoding="utf-8"), 'gpuskinning = "false"\n')
+        self.assertIn("==> Set gpuskinning = false in user.cfg", output.getvalue())
+        windows.install(ZERO_AD)
+        self.assertIn("OK (already set, nothing to do)", output.getvalue())

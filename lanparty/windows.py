@@ -157,6 +157,14 @@ class Windows:
                     extract_matching, asset_path, asset.extract, dest,
                 )
 
+        for setting in spec.settings:
+            config_file = self._path(setting.file)
+            values = ", ".join(f"{key} = {value}" for key, value in setting.values.items())
+            steps.attempt(
+                f"Set {values} in {config_file.name}",
+                f"Add the line(s) {values} (value in double quotes) to {config_file} by hand.",
+                set_config_values, config_file, setting.values,
+            )
         for shortcut in spec.shortcuts:
             steps.run(
                 f"Create desktop shortcut '{shortcut.name}'",
@@ -340,6 +348,20 @@ def remove_other_version(install_dir: Path, url: str) -> str | None:
     if marker.is_file() and marker.read_text(encoding="utf-8").strip() == url:
         return "same version, kept"
     shutil.rmtree(install_dir)
+    return None
+
+
+def set_config_values(path: Path, values: dict[str, str]) -> str | None:
+    """Sets lines `key = "value"` in a config file like 0 A.D.'s user.cfg, keeping every other line.
+    Creates the file when the game hasn't written it yet; the game fills in its defaults for the rest."""
+    lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    wanted = [f'{key} = "{value}"' for key, value in values.items()]
+    is_ours = [line.split("=", 1)[0].strip() in values for line in lines]
+    if sorted(line for line, ours in zip(lines, is_ours) if ours) == sorted(wanted):
+        return "already set, nothing to do"
+    kept = [line for line, ours in zip(lines, is_ours) if not ours]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(kept + wanted) + "\n", encoding="utf-8")
     return None
 
 
