@@ -23,9 +23,12 @@ exe names and app architectures, and which folders a game creates when it starts
       Also check that the elevated window is a classic console (conhost) even when Windows Terminal is the default
       terminal, and that `still installing... m:ss` updates in place there.
 - [ ] **0 A.D.: GPU skinning off on all Windows PCs (#14).** `[0ad.windows] settings` writes
-      `gpuskinning = "false"` into `user.cfg`. Measure the frame rate with many units on a slow party PC (CPU
-      skinning costs some). After step 3 in #14 (which GPUs are affected), decide whether it should only apply to
-      some GPUs.
+      `gpuskinning = "false"` into `user.cfg`. #14 is closed; still to check:
+      - Run `lan.py install 0ad` on itlanb55 (its `user.cfg` has no `gpuskinning` line right now). Afterwards the
+        file should end with `gpuskinning = "false"` and keep the other lines. Find out whether reinstalling runs
+        the full 0 A.D. installer again.
+      - Measure the frame rate with many units on a slow party PC (CPU skinning costs some).
+      - Optional: inventory of the Windows party PCs (GPU, driver), only needed to limit the setting to some GPUs.
 - [ ] **AssaultCube: user data folder.** `games.toml` → `[assaultcube.windows] data` assumes
       `Documents/My Games/AssaultCube`.
 
