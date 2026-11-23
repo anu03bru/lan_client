@@ -15,6 +15,7 @@ class Steps:
         self.stream = stream
         self.color = stream.isatty() if color is None else color
         self.warnings: list[str] = []
+        self._waiting = False
 
     def run(self, name: str, hint: str, action: Callable[..., Any], *args: Any) -> Any:
         """Runs a required step. On failure it prints the hint and raises StepFailed."""
@@ -59,6 +60,17 @@ class Steps:
             self.warn("Multiplayer only works reliably if all players have the same version. Tell the organizer.")
             # Listed once in the final summary, so the install doesn't end with a plain "Done!"
             self.warnings.append("Check version")
+
+    def waiting(self, label: str, seconds: float) -> None:
+        """Updates one line in place, e.g. "    still installing... 1:30". End it with end_waiting()."""
+        minutes, rest = divmod(int(seconds), 60)
+        print(f"\r    {label}... {minutes}:{rest:02d}", end="", file=self.stream, flush=True)
+        self._waiting = True
+
+    def end_waiting(self) -> None:
+        if self._waiting:
+            print(file=self.stream, flush=True)
+            self._waiting = False
 
     def info(self, message: str, color: str | None = None) -> None:
         self._print(message, color)

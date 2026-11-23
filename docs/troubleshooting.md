@@ -14,6 +14,7 @@ Running the install again is safe.
 | `Do not run this with sudo or as root` | Run `./lan.py` without `sudo`. |
 | `Check flatpak` fails (Linux) | Install Flatpak: `sudo pacman -S flatpak`. |
 | `Download ...` fails with "Open the LAN share first" | Only at the LAN party: open the fileserver share, see [lan-share.md](lan-share.md). |
+| Windows: the install seems frozen, and continues after pressing Enter | A click into the console window paused it. Press **Enter** or **Esc**. Installers can take several minutes: the line `still installing... 1:30` shows that it's still working. |
 | Windows: games installed in the wrong user folder | The admin prompt was confirmed with a different account. Uninstall, then install again and confirm with your own account. |
 | macOS: "app can't be opened" | Right-click the app in **~/Applications** and choose **Open**. If that isn't offered: **System Settings → Privacy & Security** → **Open Anyway**. |
 | Windows: 0 A.D. doesn't start, a DLL like `VCRUNTIME140.dll` or `MSVCP140.dll` is missing | Run `lan.py install 0ad` again: it installs the Microsoft Visual C++ Redistributable first. Or install it by hand: [vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe). |

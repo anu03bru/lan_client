@@ -52,7 +52,7 @@ def _copy_checked(source: BinaryIO, total_bytes: int, target: Path, expected_sha
             percent = done_bytes * 100 // total_bytes if total_bytes else -1
             if percent != shown_percent:
                 shown_percent = percent
-                total_text = f" / {total_bytes / 1e6:.0f} MB" if total_bytes else " MB"
+                total_text = f" / {total_bytes / 1e6:.0f} MB ({percent}%)" if total_bytes else " MB"
                 print(f"\r    {done_bytes / 1e6:.0f}{total_text}", end="", file=sys.stderr, flush=True)
     print(file=sys.stderr)
 
