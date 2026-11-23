@@ -25,7 +25,7 @@ Running the install again is safe.
 | Connection fails right away | Everyone needs the **same version**, see the [game table](installation.md#playing-together). |
 | Others can't reach your game (you host) | Your firewall must allow the game's port. `lan.py install` opens it. Linux: check with `sudo ufw status`. |
 | Windows PC not reachable | Set the network profile to **Private**: Settings → Network & Internet → your network. |
-| macOS game can't find or join a server | **System Settings → Privacy & Security → Local Network** → enable the game. |
+| macOS game can't find or join a server | **System Settings → Privacy & Security → Local Network** → enable the game. AssaultCube: see [below](#assaultcube-could-not-connect-to-server-macos). |
 
 Ports, only needed by the player who hosts: Blobby Volley 1234/udp, 0 A.D. 20595/udp,
 SuperTuxKart 2757/udp and 2759/udp. Doom and AssaultCube use a separate server machine.
@@ -39,6 +39,20 @@ If the list still stays empty, connect **once directly by IP**:
 1. Ask the host for their IP address.
 2. In SuperTuxKart go to **Online → Enter server address**.
 3. Enter **`<SERVER-IP>:2759`**, e.g. `192.168.1.42:2759`.
+
+## AssaultCube: "could not connect to server" (macOS)
+
+On the Mac, AssaultCube gets stuck at `attempting to connect` and then says `could not connect to server`, even when
+it's enabled under **Local Network**. macOS blocks the game's network access when it's started from Finder.
+Start it from **Terminal** instead:
+```bash
+~/Applications/AssaultCube.app/Contents/MacOS/launcher
+```
+Then join as usual, or in the console: `/connect <SERVER-IP> 28763`.
+
+If the server answers `server requires a valid game account to connect`, unlock your game account: type
+`/checkaccount` in the console and enter its password. If you don't have an account yet, the same command offers
+to create one. It is stored only on your computer, no sign-up needed.
 
 ## Doom: server not listed in Odalaunch
 
