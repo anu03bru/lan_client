@@ -31,6 +31,18 @@ class Asset:
 
 
 @dataclass(frozen=True)
+class Runtime:
+    """Something a Windows game needs to start, e.g. the Visual C++ Redistributable. Installed only when missing,
+    never removed: other programs use it too."""
+    id: str
+    type: str
+    name: str
+    url: str
+    sha256: str
+    version: str
+
+
+@dataclass(frozen=True)
 class LinuxSpec:
     type: str
     app_id: str
@@ -51,6 +63,7 @@ class WindowsSpec:
     install_dir: str | None = None
     shortcuts: tuple[Shortcut, ...] = ()
     data: tuple[str, ...] = ()
+    requires: tuple[Runtime, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -81,6 +94,7 @@ class Game:
 GAME_ID_PATTERN = re.compile(r"^[a-z0-9_]+$")
 PORT_PATTERN = re.compile(r"^\d{1,5}/(udp|tcp)$")
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+VERSION_PATTERN = re.compile(r"^\d+(\.\d+){1,3}$")
 
 # type -> (required keys, optional keys)
 LINUX_TYPES = {
@@ -88,12 +102,15 @@ LINUX_TYPES = {
     "flatpak-bundle": ({"type", "app_id", "url", "sha256"}, {"overrides", "data"}),
 }
 WINDOWS_TYPES = {
-    "nsis": ({"type", "url", "sha256", "uninstall_name"}, {"data"}),
-    "zip": ({"type", "url", "sha256", "install_dir"}, {"shortcuts", "data"}),
+    "nsis": ({"type", "url", "sha256", "uninstall_name"}, {"data", "requires"}),
+    "zip": ({"type", "url", "sha256", "install_dir"}, {"shortcuts", "data", "requires"}),
 }
 MACOS_TYPES = {
     "dmg": ({"type", "url", "sha256", "apps"}, {"arm64", "data"}),
     "zip": ({"type", "url", "sha256", "apps"}, {"arm64", "data"}),
+}
+RUNTIME_TYPES = {
+    "vcredist-x64": ({"type", "name", "url", "sha256", "version"}, set()),
 }
 PLATFORMS = ("linux", "windows", "macos")
 # Stands for the LAN share folder in games-lan.toml, set per OS by its [share] table
@@ -149,15 +166,40 @@ def _replace_share(value: Any, folder: str) -> Any:
 
 
 def parse_games(tables: dict[str, Any]) -> list[Game]:
+    tables = dict(tables)
+    runtimes = _parse_runtimes(tables.pop("runtimes", {}))
     games = []
     for game_id, table in tables.items():
         if not GAME_ID_PATTERN.match(game_id) or game_id == "all":
             raise ConfigError(f"[{game_id}]: game id must be lowercase letters, digits or _, and not 'all'")
-        games.append(_parse_game(game_id, table))
+        games.append(_parse_game(game_id, table, runtimes))
     return games
 
 
-def _parse_game(game_id: str, table: Any) -> Game:
+def _parse_runtimes(tables: Any) -> dict[str, Runtime]:
+    if not isinstance(tables, dict):
+        raise ConfigError("[runtimes]: expected tables like [runtimes.vcredist_x64]")
+    runtimes = {}
+    for runtime_id, table in tables.items():
+        where = f"[runtimes.{runtime_id}]"
+        spec_type = _spec_type(where, table, RUNTIME_TYPES)
+        required, optional = RUNTIME_TYPES[spec_type]
+        _check_keys(where, table, required, optional)
+        version = _string(where, table, "version")
+        if not VERSION_PATTERN.match(version):
+            raise ConfigError(f"{where}: version must look like 14.44.35211")
+        runtimes[runtime_id] = Runtime(
+            id=runtime_id,
+            type=spec_type,
+            name=_string(where, table, "name"),
+            url=_string(where, table, "url"),
+            sha256=_sha256(where, table),
+            version=version,
+        )
+    return runtimes
+
+
+def _parse_game(game_id: str, table: Any, runtimes: dict[str, Runtime]) -> Game:
     where = f"[{game_id}]"
     _check_keys(where, table, {"name"}, {"version", "ports", "reply_ports", "hint", *PLATFORMS, "assets"})
     ports = _ports(where, table, "ports")
@@ -180,7 +222,7 @@ def _parse_game(game_id: str, table: Any) -> Game:
         reply_ports=reply_ports,
         hint=_string(where, table, "hint"),
         linux=_parse_linux(f"[{game_id}.linux]", table["linux"]) if "linux" in table else None,
-        windows=_parse_windows(f"[{game_id}.windows]", table["windows"]) if "windows" in table else None,
+        windows=_parse_windows(f"[{game_id}.windows]", table["windows"], runtimes) if "windows" in table else None,
         macos=_parse_macos(f"[{game_id}.macos]", table["macos"]) if "macos" in table else None,
         assets=parsed_assets,
     )
@@ -209,7 +251,7 @@ def _parse_linux(where: str, table: Any) -> LinuxSpec:
     )
 
 
-def _parse_windows(where: str, table: Any) -> WindowsSpec:
+def _parse_windows(where: str, table: Any, runtimes: dict[str, Runtime]) -> WindowsSpec:
     spec_type = _spec_type(where, table, WINDOWS_TYPES)
     required, optional = WINDOWS_TYPES[spec_type]
     _check_keys(where, table, required, optional)
@@ -220,6 +262,12 @@ def _parse_windows(where: str, table: Any) -> WindowsSpec:
     for shortcut in shortcuts:
         _check_keys(f"{where} shortcut", shortcut, {"name", "target"}, set())
 
+    requires = _strings(where, table, "requires")
+    for runtime_id in requires:
+        if runtime_id not in runtimes:
+            known = ", ".join(runtimes) or "none"
+            raise ConfigError(f"{where}: requires unknown runtime {runtime_id!r} (defined in [runtimes]: {known})")
+
     return WindowsSpec(
         type=spec_type,
         url=_string(where, table, "url"),
@@ -228,6 +276,7 @@ def _parse_windows(where: str, table: Any) -> WindowsSpec:
         install_dir=_string(where, table, "install_dir"),
         shortcuts=tuple(Shortcut(name=str(item["name"]), target=str(item["target"])) for item in shortcuts),
         data=_strings(where, table, "data"),
+        requires=tuple(runtimes[runtime_id] for runtime_id in dict.fromkeys(requires)),
     )
 
 

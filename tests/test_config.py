@@ -31,6 +31,24 @@ apps = ["SuperTuxKart.app"]
 arm64 = {{ url = "https://example.invalid/arm.dmg", sha256 = "{SHA}" }}
 """
 
+WINDOWS_GAME = f"""
+[stk]
+name = "SuperTuxKart"
+[stk.windows]
+type = "nsis"
+url = "https://example.invalid/stk.exe"
+sha256 = "{SHA}"
+uninstall_name = "SuperTuxKart*"
+"""
+RUNTIME = f"""
+[runtimes.vcredist_x64]
+type = "vcredist-x64"
+name = "Microsoft Visual C++ Redistributable"
+url = "https://example.invalid/VC_redist.x64.exe"
+sha256 = "{SHA}"
+version = "14.44.35211"
+"""
+
 
 def parse(text: str):
     return parse_games(tomllib.loads(text))
@@ -51,6 +69,8 @@ class GamesFileTest(unittest.TestCase):
             self.assertIsNotNone(game.macos, game.id)
         self.assertIsNotNone(games["0ad"].macos.arm64_url)
         self.assertTrue(all(asset.macos_dest for asset in games["doom"].assets))
+        self.assertEqual([runtime.id for runtime in games["0ad"].windows.requires], ["vcredist_x64"])
+        self.assertEqual(games["0ad"].windows.requires[0].type, "vcredist-x64")
 
 
 class LanGamesFileTest(unittest.TestCase):
@@ -177,6 +197,26 @@ class ValidationTest(unittest.TestCase):
         self.assert_error(MACOS_GAME + asset, "needs a macos_dest")
         game = parse(MACOS_GAME + asset + 'macos_dest = "~/a"\n')[0]
         self.assertEqual(game.assets[0].macos_dest, "~/a")
+
+    def test_windows_requires_runtime(self):
+        game = parse(RUNTIME + WINDOWS_GAME + 'requires = ["vcredist_x64", "vcredist_x64"]\n')[0]
+        self.assertEqual(len(game.windows.requires), 1)
+        runtime = game.windows.requires[0]
+        self.assertEqual((runtime.id, runtime.type, runtime.version), ("vcredist_x64", "vcredist-x64", "14.44.35211"))
+        self.assertEqual(parse(RUNTIME + WINDOWS_GAME)[0].windows.requires, ())
+
+    def test_runtimes_table_is_not_a_game(self):
+        self.assertEqual([game.id for game in parse(RUNTIME + WINDOWS_GAME)], ["stk"])
+
+    def test_unknown_runtime(self):
+        self.assert_error(WINDOWS_GAME + 'requires = ["vcredist"]\n', "requires unknown runtime 'vcredist'")
+        self.assert_error(RUNTIME + WINDOWS_GAME + 'requires = ["vcredist"]\n', "(defined in [runtimes]: vcredist_x64)")
+
+    def test_runtime_fields_checked(self):
+        self.assert_error(RUNTIME.replace('"vcredist-x64"', '"dotnet"'), "unknown type 'dotnet'")
+        self.assert_error(RUNTIME.replace('version = "14.44.35211"', ""), "missing version")
+        self.assert_error(RUNTIME.replace('"14.44.35211"', '"latest"'), "version must look like")
+        self.assert_error(RUNTIME.replace(f'"{SHA}"', '"abc"'), "sha256 must be 64")
 
     def test_reserved_id(self):
         self.assert_error(VALID_GAME.replace("[stk", "[all"), "not 'all'")

@@ -6,7 +6,7 @@ from unittest import mock
 from lanparty.runner import CommandError
 from lanparty.steps import StepFailed
 from lanparty.windows import (INSTALL_TIMEOUT_SECONDS, VERSION_MARKER, UninstallEntry, Windows, firewall_rules,
-                              ps_quote, remove_other_version, uninstaller_path)
+                              ps_quote, remove_other_version, uninstaller_path, version_tuple)
 from tests.fakes import FakeRunner, game_from_toml, quiet_steps
 
 STK = game_from_toml("""
@@ -33,9 +33,31 @@ shortcuts = [{ name = "Blobby Volley 2", target = "blobby.exe" }]
 """)
 
 
+ZERO_AD = game_from_toml("""
+[runtimes.vcredist_x64]
+type = "vcredist-x64"
+name = "Microsoft Visual C++ Redistributable"
+url = "https://example.invalid/VC_redist.x64.exe"
+sha256 = "a1260ebb73dd9da13ec3e37f526f29e494b3b66c00c05fd70767b30a4497d95e"
+version = "14.44.35211"
+[zero_ad]
+name = "0 A.D."
+[zero_ad.windows]
+type = "nsis"
+url = "https://example.invalid/0ad.exe"
+sha256 = "a1260ebb73dd9da13ec3e37f526f29e494b3b66c00c05fd70767b30a4497d95e"
+uninstall_name = "0 A.D.*"
+requires = ["vcredist_x64"]
+""")
+
+
 class FakeRegistry:
-    def __init__(self, entries: list[UninstallEntry]) -> None:
+    def __init__(self, entries: list[UninstallEntry], vcredist: tuple[int, ...] | None = None) -> None:
         self.entries = list(entries)
+        self.vcredist = vcredist
+
+    def vcredist_x64_version(self):
+        return self.vcredist
 
     def find(self, pattern):
         return [entry for entry in self.entries if entry.display_name.lower().startswith(pattern.rstrip("*").lower())]
@@ -65,6 +87,10 @@ class HelperTest(unittest.TestCase):
 
     def test_ps_quote(self):
         self.assertEqual(ps_quote("it's"), "'it''s'")
+
+    def test_version_tuple(self):
+        self.assertEqual(version_tuple("14.44.35211"), (14, 44, 35211, 0))
+        self.assertEqual(version_tuple("14.44.35211.1"), (14, 44, 35211, 1))
 
 
 class NsisUninstallTest(unittest.TestCase):
@@ -233,3 +259,62 @@ class VersionMarkerTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@mock.patch("lanparty.windows.download")
+class RuntimeTest(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+
+    def install(self, installed, returncode=0):
+        def respond(args):
+            return (returncode, "") if args[0].endswith("VC_redist.x64.exe") else (0, "")
+
+        windows, runner, output = make_windows(self.root, FakeRegistry([], vcredist=installed), respond)
+        try:
+            windows.install(ZERO_AD)
+        except StepFailed:
+            pass
+        return windows, runner, output.getvalue()
+
+    def test_missing_runtime_is_installed_before_the_game(self, download):
+        _windows, runner, _output = self.install(None)
+        self.assertTrue(runner.calls[0][0].endswith("VC_redist.x64.exe"))
+        self.assertEqual(runner.calls[0][1:], ["/install", "/quiet", "/norestart"])
+        self.assertTrue(runner.calls[1][0].endswith("0ad.exe"))
+        self.assertEqual(download.call_args_list[0].args[0], "https://example.invalid/VC_redist.x64.exe")
+
+    def test_older_runtime_is_updated(self, _download):
+        _windows, runner, _output = self.install((14, 40, 33810, 0))
+        self.assertTrue(runner.calls[0][0].endswith("VC_redist.x64.exe"))
+
+    def test_same_or_newer_runtime_is_kept(self, download):
+        for installed in ((14, 44, 35211, 0), (14, 50, 1, 0)):
+            _windows, runner, output = self.install(installed)
+            self.assertEqual(len(runner.calls), 1, installed)
+            self.assertTrue(runner.calls[0][0].endswith("0ad.exe"))
+            self.assertIn(f"installed, nothing to do", output)
+        self.assertTrue(all(not call.args[0].endswith("VC_redist.x64.exe") for call in download.call_args_list))
+
+    def test_restart_needed_is_a_warning(self, _download):
+        windows, runner, output = self.install(None, returncode=3010)
+        self.assertIn("Restart Windows", output)
+        self.assertEqual(windows.steps.warnings, ["Install Microsoft Visual C++ Redistributable (restart Windows)"])
+        self.assertTrue(runner.calls[1][0].endswith("0ad.exe"))
+
+    def test_newer_version_already_installed_is_ok(self, _download):
+        windows, runner, output = self.install(None, returncode=1638)
+        self.assertIn("OK (a newer version is already installed)", output)
+        self.assertEqual(windows.steps.warnings, [])
+        self.assertTrue(runner.calls[1][0].endswith("0ad.exe"))
+
+    def test_failed_runtime_stops_the_game_install(self, _download):
+        _windows, runner, output = self.install(None, returncode=1603)
+        self.assertIn("Installer exited with code 1603", output)
+        self.assertIn("https://aka.ms/vs/17/release/vc_redist.x64.exe", output)
+        self.assertEqual(len(runner.calls), 1)
+
+    def test_uninstall_leaves_the_runtime(self, _download):
+        windows, runner, _output = make_windows(self.root, FakeRegistry([], vcredist=None))
+        windows.uninstall(ZERO_AD)
+        self.assertFalse(any("VC_redist" in " ".join(call) for call in runner.calls))

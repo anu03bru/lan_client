@@ -26,7 +26,9 @@ Linux) and delete user data.
 ## Architecture
 
 - `games.toml` is the single source of truth for games: URLs, sha256, ports, app ids, data folders. Its header comment
-  is the field reference. Adding a game should normally need no code change.
+  is the field reference. Adding a game should normally need no code change. The `[runtimes]` table is not a game:
+  it holds Windows runtimes (Visual C++ Redistributable) that a game lists in `requires`. They are installed when
+  missing and never uninstalled.
 - `lanparty/config.py` parses it strictly into frozen dataclasses (`Game`, `LinuxSpec`, `WindowsSpec`, `MacosSpec`,
   `Asset`). Unknown keys are errors, and each spec `type` has a required/optional key set in `LINUX_TYPES`,
   `WINDOWS_TYPES` and `MACOS_TYPES`. A new field means: dataclass + type table + `_parse_*` + the `games.toml` header

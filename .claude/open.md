@@ -14,6 +14,10 @@ exe names and app architectures, and which folders a game creates when it starts
 - [ ] **ZIP games: settings in the install folder?** A reinstall of a *new* version deletes the install folder
       (`remove_other_version` in `lanparty/windows.py`). Check whether Odamex or Blobby Volley keep the player name
       there; if so, those files need to be carried over.
+- [ ] **0 A.D.: Visual C++ Redistributable (#12).** `lan.py install 0ad` installs it first when it's missing or
+      older than 14.44.35211 (`[runtimes.vcredist_x64]` in `games.toml`). Check on a PC without it: the step installs
+      it silently, 0 A.D. starts, and a second install says "installed, nothing to do". Also note which DLL was
+      missing. The e2e runners already have it, so they only show the "nothing to do" path.
 - [ ] **AssaultCube: user data folder.** `games.toml` → `[assaultcube.windows] data` assumes
       `Documents/My Games/AssaultCube`.
 

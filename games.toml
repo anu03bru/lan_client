@@ -29,6 +29,7 @@
 #   type = "zip"    url, sha256, install_dir            Portable ZIP, extracted into install_dir
 #   optional: shortcuts = [{ name, target }]            Desktop shortcuts; target is an .exe inside install_dir
 #   optional: data = [...]                              User data folders deleted on uninstall
+#   optional: requires = ["<runtime id>", ...]          Runtimes from [runtimes] installed before the game
 #
 # [<id>.macos]
 #   type = "dmg"    url, sha256, apps                   Disk image
@@ -42,9 +43,23 @@
 #   Extra ZIP downloads. Files matching `extract` (e.g. "*.wad") are copied into the dest folder.
 #   The dest folders are deleted on uninstall. macos_dest is only needed when the game has a macos table.
 #
+# [runtimes.<runtime id>]  (Windows only, so "runtimes" can't be a game id)
+#   type = "vcredist-x64"   name, url, sha256, version  Microsoft Visual C++ Redistributable (x64). Installed when
+#                                                       it's missing or older than `version` (from the registry),
+#                                                       never removed: other programs use it too. Pin a build from
+#                                                       https://aka.ms/vs/17/release/vc_redist.x64.exe (it redirects
+#                                                       to a fixed URL); version = the exe's file version
+#
 # Paths: ~ is your home folder. On Windows %APPDATA%, %LOCALAPPDATA%, %USERPROFILE%, %DOCUMENTS% and %DESKTOP%
 # can be used. Use / as separator on all systems.
 # games-lan.toml (LAN party only) also has a [share] table and %SHARE% in its URLs, see docs/lan-share.md.
+
+[runtimes.vcredist_x64]
+type = "vcredist-x64"
+name = "Microsoft Visual C++ Redistributable"
+url = "https://download.visualstudio.microsoft.com/download/pr/e9604e21-4b79-4096-a4b3-1b63d4b55b4d/CC0FF0EB1DC3F5188AE6300FAEF32BF5BEEBA4BDD6E8E445A9184072096B713B/VC_redist.x64.exe"
+sha256 = "cc0ff0eb1dc3f5188ae6300faef32bf5beeba4bdd6e8e445a9184072096b713b"
+version = "14.44.35211"
 
 [doom]
 name = "Doom (Odamex + Freedoom)"
@@ -140,6 +155,7 @@ url = "https://releases.wildfiregames.com/0ad-0.28.0-win64.exe"
 sha256 = "9b5e1a16d4e0df9c84e052f56fb75da69518d5634c88d2b38db69baee63c16a1"
 uninstall_name = "0 A.D.*"
 data = ["%APPDATA%/0ad", "%LOCALAPPDATA%/0ad", "%DOCUMENTS%/My Games/0ad"]
+requires = ["vcredist_x64"]  # VCRUNTIME140.dll etc., not on a fresh Windows and not in the 0 A.D. installer
 
 [0ad.macos]
 type = "dmg"
