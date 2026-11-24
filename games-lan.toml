@@ -47,6 +47,7 @@ linux = "/run/user/1000/gvfs/smb-share:server=fileserver,share=lanparty"
 #                                                       install folder's name matches uninstall_name too
 #   type = "zip"    url, sha256, install_dir            Portable ZIP, extracted into install_dir
 #   optional: shortcuts = [{ name, target }]            Desktop shortcuts; target is an .exe inside install_dir
+#                                                       (zip) or in the uninstaller's folder (nsis)
 #   optional: data = [...]                              User data folders deleted on uninstall
 #   optional: requires = ["<runtime id>", ...]          Runtimes from [runtimes] installed before the game
 #   optional: settings = [{ file, values = { key = "value", ... } }]
@@ -214,6 +215,7 @@ type = "nsis"
 url = "%SHARE%/0ad/0ad-0.28.0-win64.exe"
 sha256 = "9b5e1a16d4e0df9c84e052f56fb75da69518d5634c88d2b38db69baee63c16a1"
 uninstall_name = "0 A.D.*"
+shortcuts = [{ name = "0 A.D.", target = "pyrogenesis.exe" }]  # the silent install makes none (#11)
 data = ["%APPDATA%/0ad", "%LOCALAPPDATA%/0ad", "%DOCUMENTS%/My Games/0ad"]
 requires = ["vcredist_x64"]  # VCRUNTIME140.dll etc., not on a fresh Windows and not in the 0 A.D. installer
 # GPU skinning warps moving units on old Intel GPUs / drivers (HD Graphics 4600, driver from 2016, issue #14).
@@ -250,6 +252,7 @@ type = "nsis"
 url = "%SHARE%/supertuxkart/SuperTuxKart-1.5-installer-x86_64.exe"
 sha256 = "a1260ebb73dd9da13ec3e37f526f29e494b3b66c00c05fd70767b30a4497d95e"
 uninstall_name = "SuperTuxKart*"
+shortcuts = [{ name = "SuperTuxKart", target = "supertuxkart.exe" }]  # the silent install makes none (#11)
 data = ["%APPDATA%/supertuxkart", "%LOCALAPPDATA%/supertuxkart"]
 
 [supertuxkart.macos]

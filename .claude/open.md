@@ -29,6 +29,12 @@ exe names and app architectures, and which folders a game creates when it starts
         the full 0 A.D. installer again.
       - Measure the frame rate with many units on a slow party PC (CPU skinning costs some).
       - Optional: inventory of the Windows party PCs (GPU, driver), only needed to limit the setting to some GPUs.
+- [ ] **Desktop shortcuts for 0 A.D. and SuperTuxKart (#11).** NSIS games now get `shortcuts` too; the target is
+      searched in the folder of the uninstaller from "Apps & features" (`_game_folders` in `lanparty/windows.py`),
+      only when that folder's name matches `uninstall_name`. Check after `lan.py install 0ad supertuxkart`: both
+      icons are on the desktop and start the game (0 A.D.: `pyrogenesis.exe` in `binaries/system`), the installers
+      didn't make their own second icon, and uninstall removes both. If the step warns "No install folder", note
+      the uninstaller path (`UninstallString`) from the registry.
 - [ ] **AssaultCube: user data folder.** `games.toml` → `[assaultcube.windows] data` assumes
       `Documents/My Games/AssaultCube`.
 

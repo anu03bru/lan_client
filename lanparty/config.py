@@ -118,7 +118,7 @@ LINUX_TYPES = {
     "flatpak-bundle": ({"type", "app_id", "url", "sha256"}, {"overrides", "data", "requires"}),
 }
 WINDOWS_TYPES = {
-    "nsis": ({"type", "url", "sha256", "uninstall_name"}, {"data", "requires", "settings"}),
+    "nsis": ({"type", "url", "sha256", "uninstall_name"}, {"shortcuts", "data", "requires", "settings"}),
     "zip": ({"type", "url", "sha256", "install_dir"}, {"shortcuts", "data", "requires", "settings"}),
 }
 MACOS_TYPES = {
