@@ -34,8 +34,8 @@ exe names and app architectures, and which folders a game creates when it starts
 
 ## macOS (needs a Mac, ideally one Apple Silicon and one Intel)
 
-- [ ] **Whole macOS install.** Only SuperTuxKart is tested so far. The other games get tested during the big
-      network test (Friday or Monday): `./lan.py install all`, start every game, then `./lan.py uninstall all`.
+- [ ] **Whole macOS install.** Only SuperTuxKart is tested so far. The other games get tested during the final
+      network test (Thursday 2026-11-26): `./lan.py install all`, start every game, then `./lan.py uninstall all`.
 - [ ] **Disk images with a license agreement.** `hdiutil attach` asks on the terminal before opening such an image.
       Check whether any of the five images does this, and whether the prompt is usable.
 - [ ] **User data folders** (what uninstall deletes), in `games.toml` → `[<id>.macos] data`:
