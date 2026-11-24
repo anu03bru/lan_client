@@ -63,6 +63,7 @@ class GamesFileTest(unittest.TestCase):
         self.assertEqual(games["doom"].linux.type, "flatpak-bundle")
         self.assertEqual(len(games["doom"].assets), 2)
         self.assertEqual(games["doom"].windows.shortcuts[0].target, "odalaunch.exe")
+        self.assertEqual(games["0ad"].windows.shortcuts[0].target, "pyrogenesis.exe")  # nsis may have shortcuts too
         for game in games.values():
             self.assertIsNotNone(game.linux, game.id)
             self.assertIsNotNone(game.windows, game.id)

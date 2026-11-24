@@ -26,8 +26,8 @@ All commands below are run inside that folder.
 4. **Confirm the admin prompt.** It is needed for the installers and the firewall rules. Confirm it with **your own**
    Windows account: if a different account confirms it, the games end up in that account's folders.
 
-After the install the games are in the start menu. Doom and Blobby Volley get desktop shortcuts instead
-(**Odamex LAN**, **Odamex Singleplayer** and **Blobby Volley 2**).
+After the install the games are on the desktop: **Odamex LAN**, **Odamex Singleplayer**, **Blobby Volley 2**,
+**0 A.D.** and **SuperTuxKart**. 0 A.D., SuperTuxKart and AssaultCube are also in the start menu.
 
 ## Linux
 

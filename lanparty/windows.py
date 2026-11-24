@@ -165,10 +165,14 @@ class Windows:
                 f"Add the line(s) {values} (value in double quotes) to {config_file} by hand.",
                 set_config_values, config_file, setting.values,
             )
+        # Optional: without it the game is still in the Start menu (NSIS) or its folder (ZIP),
+        # and a missing shortcut must not skip the firewall rules below
+        start_hint = ("Start the game from the Start menu." if spec.type == "nsis"
+                      else f"Start the game manually from {self._path(spec.install_dir or '')}.")
         for shortcut in spec.shortcuts:
-            steps.run(
+            steps.attempt(
                 f"Create desktop shortcut '{shortcut.name}'",
-                f"Start the game manually from {self._path(spec.install_dir)}.",
+                start_hint,
                 self._create_shortcut, spec, shortcut.name, shortcut.target,
             )
         if game.ports:
@@ -220,10 +224,11 @@ class Windows:
             self.steps.end_waiting()
 
     def _create_shortcut(self, spec: WindowsSpec, name: str, target: str) -> None:
-        install_dir = self._path(spec.install_dir)
-        matches = sorted(install_dir.rglob(target))
+        folders = self._game_folders(spec)
+        matches = sorted(path for folder in folders for path in folder.rglob(target))
         if not matches:
-            raise FileNotFoundError(f"{target} not found in {install_dir}. Update the shortcut target in games.toml.")
+            where = ", ".join(str(folder) for folder in folders)
+            raise FileNotFoundError(f"{target} not found in {where}. Update the shortcut target in games.toml.")
         target_path = matches[0]
         shortcut_path = self._path(f"%DESKTOP%/{name}.lnk")
         self._powershell(
@@ -232,6 +237,18 @@ class Windows:
             f"$shortcut.WorkingDirectory = {ps_quote(str(target_path.parent))}; "
             "$shortcut.Save()"
         )
+
+    def _game_folders(self, spec: WindowsSpec) -> list[Path]:
+        """Where the game's files are: install_dir for a ZIP game. An NSIS installer picks its own folder, so it's
+        the uninstaller's folder from "Apps & features" (only when its name matches uninstall_name)."""
+        if spec.type != "nsis":
+            return [self._path(spec.install_dir)]
+        folders = [folder for _entry, folder in self._nsis_install_folders(spec.uninstall_name)]
+        if not folders:
+            raise FileNotFoundError(
+                f"No install folder named like '{spec.uninstall_name}' found in \"Apps & features\"."
+            )
+        return folders
 
     def _add_firewall_rule(self, rule_name: str, protocol: str, ports: str) -> None:
         # Remove first, so running the install again doesn't create duplicates

@@ -7,8 +7,8 @@ All paths below are relative to the repository root.
 
 `lan.py` installs and uninstalls the LAN party games on Linux (Flatpak + ufw), Windows (NSIS installers / portable
 ZIPs + Windows Defender Firewall) and macOS (.dmg / ZIP apps copied into `~/Applications`). Python 3.11+, standard
-library only (needs `tomllib`), no build step and no linter configured. `README.md` is written for the players, not
-for developers.
+library only (needs `tomllib`), no build step and no linter configured. `README.md` and `docs/` are written for the
+players, not for developers.
 
 ## Commands
 
@@ -20,6 +20,9 @@ python3 -m unittest tests.test_macos.MacosTest.test_arm64_build_is_used_on_apple
 ./lan.py --games games-lan.toml list                  # same for the LAN party copy (files from the LAN share)
 ```
 
+`.github/workflows/e2e.yml` (started by hand) really installs and uninstalls the games on GitHub runners per OS. Its
+job summaries answer many Windows/macOS questions without a test machine.
+
 Don't run `./lan.py install` / `uninstall` casually: they install real software, change firewall rules (via sudo on
 Linux) and delete user data.
 
@@ -27,12 +30,12 @@ Linux) and delete user data.
 
 - `games.toml` is the single source of truth for games: URLs, sha256, ports, app ids, data folders. Its header comment
   is the field reference. Adding a game should normally need no code change. The `[runtimes]` table is not a game:
-  it holds Windows runtimes (Visual C++ Redistributable) that a game lists in `requires`. They are installed when
-  missing and never uninstalled.
+  it holds runtimes that a game lists in `requires`: the Visual C++ Redistributable on Windows, and in
+  `games-lan.toml` the Flatpak runtime bundles on Linux. They are installed when missing and never uninstalled.
 - `lanparty/config.py` parses it strictly into frozen dataclasses (`Game`, `LinuxSpec`, `WindowsSpec`, `MacosSpec`,
   `Asset`). Unknown keys are errors, and each spec `type` has a required/optional key set in `LINUX_TYPES`,
-  `WINDOWS_TYPES` and `MACOS_TYPES`. A new field means: dataclass + type table + `_parse_*` + the `games.toml` header
-  comment + `tests/test_config.py`.
+  `WINDOWS_TYPES`, `MACOS_TYPES` (and `RUNTIME_TYPES`). A new field means: dataclass + type table + `_parse_*` + the
+  `games.toml` header comment + `tests/test_config.py`.
 - `lanparty/cli.py` handles arguments and the menu, then `make_platform()` picks `Linux`, `Windows` or `Macos` by
   `sys.platform`. All three handlers have the same duck-typed interface: `name`, `check_ready`, `needs_admin`,
   `supports`, `is_installed`, `install`, `uninstall` and `cleanup_after_uninstall_all`. There is no base class.
@@ -45,9 +48,11 @@ Linux) and delete user data.
 - All external commands go through `lanparty/runner.py` (`Runner.run`, `Runner.exists`). Tests replace it with
   `FakeRunner` and `FakeUfw` from `tests/fakes.py`, so no test runs real commands. Platform-only modules (`winreg`,
   `ctypes.windll`) are imported inside functions, so `windows.py` stays importable on Linux.
-- `games-lan.toml` (temporary, LAN party only) is `games.toml` with every `url` set to `%SHARE%/<id>/<file>`. Its
-  `[share]` table gives the share folder per OS, filled in by `config.fill_share`. `download()` copies plain paths
-  instead of fetching them. A test in `tests/test_config.py` fails when the two files differ in anything but the URLs.
+- `games-lan.toml` (temporary, LAN party only) is `games.toml` with every `url` set to `%SHARE%/<id>/<file>`, and
+  on Linux the Flathub games come from `.flatpak` bundles (`bundle`, `flatpak-runtime`). Its `[share]` table gives
+  the share folder per OS, filled in by `config.fill_share`. `download()` copies plain paths instead of fetching
+  them. `scripts/fill_share.py` downloads the share's files, `scripts/build_flatpak_bundles.py` exports the bundles.
+  `LanGamesFileTest` in `tests/test_config.py` fails when the two files differ in anything but these.
 - `lanparty/download.py` handles downloads, which always carry a sha256 check. It also does ZIP extraction and the
   path placeholders (`~` everywhere, `%APPDATA%` and similar only on Windows). SourceForge needs the Wget user agent
   set there.

@@ -29,13 +29,19 @@ exe names and app architectures, and which folders a game creates when it starts
         the full 0 A.D. installer again.
       - Measure the frame rate with many units on a slow party PC (CPU skinning costs some).
       - Optional: inventory of the Windows party PCs (GPU, driver), only needed to limit the setting to some GPUs.
+- [ ] **Desktop shortcuts for 0 A.D. and SuperTuxKart (#11).** NSIS games now get `shortcuts` too; the target is
+      searched in the folder of the uninstaller from "Apps & features" (`_game_folders` in `lanparty/windows.py`),
+      only when that folder's name matches `uninstall_name`. Check after `lan.py install 0ad supertuxkart`: both
+      icons are on the desktop and start the game (0 A.D.: `pyrogenesis.exe` in `binaries/system`), the installers
+      didn't make their own second icon, and uninstall removes both. If the step warns "No install folder", note
+      the uninstaller path (`UninstallString`) from the registry.
 - [ ] **AssaultCube: user data folder.** `games.toml` → `[assaultcube.windows] data` assumes
       `Documents/My Games/AssaultCube`.
 
 ## macOS (needs a Mac, ideally one Apple Silicon and one Intel)
 
-- [ ] **Whole macOS install.** Only SuperTuxKart is tested so far. The other games get tested during the big
-      network test (Friday or Monday): `./lan.py install all`, start every game, then `./lan.py uninstall all`.
+- [ ] **Whole macOS install.** Only SuperTuxKart is tested so far. The other games get tested during the final
+      network test (Thursday 2026-11-26): `./lan.py install all`, start every game, then `./lan.py uninstall all`.
 - [ ] **Disk images with a license agreement.** `hdiutil attach` asks on the terminal before opening such an image.
       Check whether any of the five images does this, and whether the prompt is usable.
 - [ ] **User data folders** (what uninstall deletes), in `games.toml` → `[<id>.macos] data`:
@@ -57,13 +63,14 @@ exe names and app architectures, and which folders a game creates when it starts
 
 ## LAN share (games-lan.toml)
 
-- [ ] **Share address.** Fill in the `[share]` table in `games-lan.toml` once the fileserver exists (still
-      `FILESERVER/lanparty`), then run `scripts/fill_share.py` and copy the result to the share.
-- [ ] **Windows: share from the admin window.** The install runs elevated. Check that the elevated process can read
-      `\\FILESERVER\lanparty` (UNC works there, mapped drive letters don't). If the share needs a login, log in
-      in the normal window first.
-- [ ] **Linux: gvfs path.** `[share] linux` assumes user id 1000 and the lowercase server name that gvfs uses.
-      Check with `ls /run/user/$(id -u)/gvfs/` on a party PC.
+- [ ] **HTTP fileserver (#9), Wednesday 2026-11-25 afternoon.** The share folder is filled and checked
+      (`~/programming/lanparty-share`, 23 files). Still to do once the colleague's server is up: copy the folder
+      onto it, change `[share]` in `games-lan.toml` (still the SMB placeholders `FILESERVER/lanparty`) to one HTTP
+      base URL for all OSes, adjust the hint for failed downloads, rewrite `docs/lan-share.md` for HTTP, test on
+      Linux, Windows and macOS.
+- [ ] **Only if the share stays SMB:** check that the elevated Windows process can read `\\FILESERVER\lanparty`
+      (UNC works there, mapped drive letters don't), and the gvfs path in `[share] linux` (assumes user id 1000,
+      check with `ls /run/user/$(id -u)/gvfs/`). Delete this item after the HTTP switch.
 - [ ] **Windows ZIP games after a switch.** `.lanparty-version` stores the download URL, so a PC that installed
       Odamex or Blobby from the internet treats a reinstall from the share as a new version and recreates the
       install folder once.
@@ -73,12 +80,15 @@ exe names and app architectures, and which folders a game creates when it starts
 - [ ] **NVIDIA (Linux).** With the proprietary driver, `lan.py` installs `org.freedesktop.Platform.GL.nvidia-<version>`
       from Flathub after bundle installs (`_install_nvidia_gl` in `lanparty/linux.py`). Check on a PC with an NVIDIA
       card that the step finds the version and the games use the GPU (not llvmpipe).
-- [ ] **Thursday 2026-11-26: make games-lan.toml the default.** Set `GAMES_FILE` in `lanparty/cli.py` to
+- [ ] **Thursday 2026-11-26 (final network test, party on Friday 2026-11-27): make games-lan.toml the default.** Set `GAMES_FILE` in `lanparty/cli.py` to
       `games-lan.toml`, so players need no `--games`. Update the commands in `README.md` and `docs/lan-share.md`
       (`--games games.toml` then means "from the internet"). Revert this after the party.
-- [ ] **After the party:** delete `games-lan.toml`, `scripts/fill_share.py`, `docs/lan-share.md`, the README chapter
-      "At the LAN party", `LanGamesFileTest` in `tests/test_config.py`, the `games.toml` header line about it and the
-      CLAUDE.md lines. Keep `--games`, `[share]` / `fill_share` and the local-path download (generic, tested).
+- [ ] **After the party:** delete `games-lan.toml`, `scripts/fill_share.py`, `scripts/build_flatpak_bundles.py` with
+      `tests/test_build_flatpak_bundles.py`, `docs/lan-share.md` and the links to it in `docs/installation.md` and
+      `docs/troubleshooting.md`, the README chapter "At the LAN party", `LanGamesFileTest` in
+      `tests/test_config.py`, the `games.toml` header lines about games-lan.toml and the CLAUDE.md lines. Keep
+      `--games`, `[share]` / `fill_share` and the local-path download (generic, tested). Decide whether the
+      Flatpak bundle support (`bundle`, `flatpak-bundle`, `flatpak-runtime`) stays or goes.
 
 ## Resolved (2026-11-19)
 

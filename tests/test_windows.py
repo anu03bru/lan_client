@@ -210,6 +210,59 @@ class NsisInstallTest(unittest.TestCase):
         self.assertIn("did not finish within 15 minutes", output.getvalue())
 
 
+STK_WITH_SHORTCUT = game_from_toml("""
+[supertuxkart]
+name = "SuperTuxKart"
+ports = ["2759/udp"]
+[supertuxkart.windows]
+type = "nsis"
+url = "https://example.invalid/stk.exe"
+sha256 = "a1260ebb73dd9da13ec3e37f526f29e494b3b66c00c05fd70767b30a4497d95e"
+uninstall_name = "SuperTuxKart*"
+shortcuts = [{ name = "SuperTuxKart", target = "supertuxkart.exe" }]
+""")
+
+
+@mock.patch("lanparty.windows.download")
+class NsisShortcutTest(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+
+    def installed(self, folder_name: str) -> tuple[Path, FakeRegistry]:
+        folder = self.root / "programfiles" / folder_name
+        (folder / "bin").mkdir(parents=True)
+        (folder / "bin/supertuxkart.exe").write_text("")
+        (folder / "Uninstall.exe").write_text("")
+        entry = UninstallEntry("SuperTuxKart 1.5", f'"{folder / "Uninstall.exe"}"', "HKEY_LOCAL_MACHINE", "x")
+        return folder, FakeRegistry([entry])
+
+    def test_target_is_found_in_the_uninstallers_folder(self, _download):
+        folder, registry = self.installed("SuperTuxKart 1.5")
+        windows, runner, _output = make_windows(self.root, registry)
+        windows._create_shortcut(STK_WITH_SHORTCUT.windows, "SuperTuxKart", "supertuxkart.exe")
+        self.assertIn(f"$shortcut.TargetPath = '{folder / 'bin/supertuxkart.exe'}'", runner.calls[0][-1])
+
+    def test_folder_with_another_name_is_not_searched(self, _download):
+        _folder, registry = self.installed("Games")
+        windows, _runner, _output = make_windows(self.root, registry)
+        with self.assertRaisesRegex(FileNotFoundError, "No install folder"):
+            windows._create_shortcut(STK_WITH_SHORTCUT.windows, "SuperTuxKart", "supertuxkart.exe")
+
+    def test_missing_shortcut_is_a_warning_and_the_firewall_rule_is_still_added(self, _download):
+        windows, runner, output = make_windows(self.root)
+        windows.install(STK_WITH_SHORTCUT)
+        self.assertIn("Start the game from the Start menu.", output.getvalue())
+        self.assertEqual(windows.steps.warnings, ["Create desktop shortcut 'SuperTuxKart'"])
+        self.assertIn("New-NetFirewallRule", runner.calls[-1][-1])
+
+    def test_uninstall_removes_the_shortcut(self, _download):
+        (self.root / "desktop").mkdir()
+        (self.root / "desktop/SuperTuxKart.lnk").write_text("")
+        windows, _runner, _output = make_windows(self.root, respond=lambda args: (0, "none\n"))
+        windows.uninstall(STK_WITH_SHORTCUT)
+        self.assertFalse((self.root / "desktop/SuperTuxKart.lnk").exists())
+
+
 class ZipTest(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())

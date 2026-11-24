@@ -3,7 +3,8 @@
 At the LAN party the internet connection is slow, so the game files are on a fileserver in the LAN.
 `games-lan.toml` lists the same games as `games.toml`, but takes every file from that share.
 
-> Temporary: this page, `games-lan.toml` and `scripts/fill_share.py` are deleted after the party.
+> Temporary: this page, `games-lan.toml`, `scripts/fill_share.py` and `scripts/build_flatpak_bundles.py` are
+> deleted after the party.
 
 ## For players
 
@@ -33,8 +34,9 @@ must fit the installed driver version exactly.
 
 1. **Fill the share** at home, where the internet is fast:
    `python3 scripts/fill_share.py <folder>`.
-   It downloads every file from `games.toml` into `<folder>/<game id>/<file name>` (the Visual C++ Redistributable for Windows into `<folder>/runtimes/`) and checks its sha256. You can run
-   it again: files that are already there with the right checksum are skipped.
+   It downloads every file from `games.toml` into `<folder>/<game id>/<file name>` (the Visual C++ Redistributable
+   for Windows into `<folder>/runtimes/`) and checks its sha256. You can run it again: files that are already there
+   with the right checksum are skipped.
 2. **Build the Linux bundles** on a Linux PC that has the games installed with `./lan.py install` (so at the pinned
    builds): `python3 scripts/build_flatpak_bundles.py <folder> --write`. It exports the Flathub games and their
    runtimes from that PC as `.flatpak` files into the same folder, and writes their sha256 into `games-lan.toml`
@@ -45,5 +47,5 @@ must fit the installed driver version exactly.
    share in the file manager and run `ls /run/user/$(id -u)/gvfs/`.
 4. **Test it** on one PC per OS before the party: `lan.py --games games-lan.toml install doom`.
 
-`games-lan.toml` must stay a copy of `games.toml` with only the URLs changed. If you change `games.toml`, change
+`games-lan.toml` must stay a copy of `games.toml` with only the URLs changed (plus the Linux bundles). If you change `games.toml`, change
 `games-lan.toml` the same way. `python3 -m unittest` fails when the two differ.
